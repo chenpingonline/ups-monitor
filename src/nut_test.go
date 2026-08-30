@@ -60,7 +60,9 @@ func TestNutClientListUPSAndVars(t *testing.T) {
 func TestNormalizeMapsStatusAndMetrics(t *testing.T) {
 	status := normalize("main", []UPSInfo{{Name: "main"}}, map[string]string{
 		"ups.status": "OL CHRG CUSTOM", "battery.charge": "87.5", "ups.load": "invalid",
-		"device.model": "Fallback Model", "battery.charge.low": "20",
+		"device.model": "Fallback Model", "battery.charge.low": "20", "battery.runtime.low": "120",
+		"input.voltage.nominal": "230", "ups.beeper.status": "enabled", "ups.firmware": "1234",
+		"driver.version": "2.8.2", "driver.version.data": "APC HID 0.100",
 	})
 	if status.StatusText != "市电供电 / 充电中 / CUSTOM" {
 		t.Fatalf("StatusText = %q", status.StatusText)
@@ -76,6 +78,12 @@ func TestNormalizeMapsStatusAndMetrics(t *testing.T) {
 	}
 	if status.Raw["battery.charge.low"] != "20" {
 		t.Fatalf("Raw = %#v", status.Raw)
+	}
+	if status.ChargeLow == nil || *status.ChargeLow != 20 || status.RuntimeLow == nil || *status.RuntimeLow != 120 {
+		t.Fatalf("thresholds = charge %v, runtime %v", status.ChargeLow, status.RuntimeLow)
+	}
+	if status.InputVoltageNominal == nil || *status.InputVoltageNominal != 230 || status.BeeperStatus != "enabled" || status.UPSFirmware != "1234" || status.DriverVersion != "2.8.2" || status.DriverDataVersion != "APC HID 0.100" {
+		t.Fatalf("device metadata = %#v", status)
 	}
 }
 

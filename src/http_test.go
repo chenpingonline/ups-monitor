@@ -186,7 +186,7 @@ func TestDashboardRendersReadableDeviceResults(t *testing.T) {
 		t.Fatalf("dashboard = %d", recorder.Code)
 	}
 	body := recorder.Body.String()
-	for _, text := range []string{"设备信息", "电池信息", "输入电源", "输出与负载", "当前功率", "市电质量", "设备能力检测", "同负载续航趋势", "展开原始 NUT 数据", "近 ${esc(data.days)} 天运行报告", "NUT 拒绝了这项操作：设备要求身份验证"} {
+	for _, text := range []string{"设备信息", "电池信息", "输入电源", "输出与负载", "当前功率", "市电质量", "低续航阈值", "蜂鸣器", "NUT 驱动版本", "设备能力检测", "同负载续航趋势", "输入/输出电压", "电池电压", "续航", "功率", "展开原始 NUT 数据", "近 ${esc(data.days)} 天运行报告", "NUT 拒绝了这项操作：设备要求身份验证"} {
 		if !strings.Contains(body, text) {
 			t.Fatalf("dashboard missing readable result marker %q", text)
 		}

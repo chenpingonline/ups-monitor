@@ -24,7 +24,7 @@ build_package() {
   awk -F= -v version="$VERSION" -v platform="$platform" '
     $1=="version" {print "version=" version; next}
     $1=="platform" {print "platform=" platform; next}
-    $1=="changelog" {print "changelog=" version " 施耐德 APC 识别、功率与市电质量、续航趋势、NUT 能力检测和 BK650M2-CH 防误报。"; next}
+    $1=="changelog" {print "changelog=" version " 低续航阈值、蜂鸣器与驱动版本展示，以及电压、续航和功率历史趋势。"; next}
     {print}
   ' "$ROOT/package/manifest" > "$stage/manifest"
 

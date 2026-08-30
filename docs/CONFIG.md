@@ -1,4 +1,4 @@
-# UPS Monitor 1.1.0 高级配置
+# UPS Monitor 1.1.1 高级配置
 
 高级配置可以在 Web UI 中编辑。保存前会执行严格校验，旧版 `nut_host`、`nut_port`、`ups_name` 配置仍然兼容。
 

@@ -1,6 +1,13 @@
-# fnOS UPS Monitor 1.1.0（x86 / ARM64 独立包）
+# fnOS UPS Monitor 1.1.1（x86 / ARM64 独立包）
 
 这是面向 fnOS x86_64 与 ARM64 NAS 的轻量 UPS 监控 FPK 项目。两种架构使用同一套源码，分别生成安装包。
+
+## 1.1.1
+
+- 概览和设备详情直接显示设备上报的低续航阈值。
+- 设备详情增加蜂鸣器状态、NUT 驱动版本、驱动数据版本和内部驱动版本。
+- 历史趋势支持切换电量/负载、输入/输出电压、电池电压、预计续航和功率。
+- 不同单位使用独立自适应纵轴，保留 1 小时、24 小时、7 天和 30 天范围。
 
 ## 1.1.0
 
@@ -78,8 +85,8 @@
 输出：
 
 ```text
-dist/fnos-ups-monitor_1.1.0_x86.fpk
-dist/fnos-ups-monitor_1.1.0_arm.fpk
+dist/fnos-ups-monitor_1.1.1_x86.fpk
+dist/fnos-ups-monitor_1.1.1_arm.fpk
 ```
 
 ## 官方 fnpack 1.2.3 构建
@@ -95,8 +102,8 @@ dist/fnos-ups-monitor_1.1.0_arm.fpk
 输出：
 
 ```text
-dist/fnos-ups-monitor_1.1.0_x86.fpk
-dist/fnos-ups-monitor_1.1.0_arm.fpk
+dist/fnos-ups-monitor_1.1.1_x86.fpk
+dist/fnos-ups-monitor_1.1.1_arm.fpk
 ```
 
 ## 安装后的日志

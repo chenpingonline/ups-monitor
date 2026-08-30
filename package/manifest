@@ -1,5 +1,5 @@
 appname=fnos-ups-monitor
-version=1.1.0
+version=1.1.1
 display_name=UPS Monitor
 desc=fnOS UPS 状态、历史趋势与事件告警监控。读取本机或远程 NUT 服务，不修改系统 UPS 配置。
 maintainer=Local Build
@@ -10,4 +10,4 @@ desktop_applaunchname=fnos-ups-monitor.main
 source=thirdparty
 ctl_stop=true
 disable_authorization_path=true
-changelog=1.1.0 新增施耐德 APC 设备识别、估算功率、市电质量、续航老化趋势、NUT 能力检测及 BK650M2-CH 状态防误报。
+changelog=1.1.1 新增低续航阈值、蜂鸣器与驱动版本展示，并支持电压、续航和功率历史趋势切换。

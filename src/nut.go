@@ -18,35 +18,42 @@ type UPSInfo struct {
 }
 
 type Status struct {
-	TargetID           string            `json:"target_id,omitempty"`
-	TargetName         string            `json:"target_name,omitempty"`
-	Connected          bool              `json:"connected"`
-	TS                 int64             `json:"ts"`
-	Error              string            `json:"error"`
-	UPSName            string            `json:"ups_name,omitempty"`
-	UPSList            []UPSInfo         `json:"ups_list"`
-	Status             string            `json:"status,omitempty"`
-	StatusFlags        []string          `json:"status_flags,omitempty"`
-	StatusText         string            `json:"status_text,omitempty"`
-	Charge             *float64          `json:"charge"`
-	Load               *float64          `json:"load"`
-	Runtime            *float64          `json:"runtime"`
-	InputVoltage       *float64          `json:"input_voltage"`
-	OutputVoltage      *float64          `json:"output_voltage"`
-	BatteryVoltage     *float64          `json:"battery_voltage"`
-	InputFrequency     *float64          `json:"input_frequency"`
-	RealPower          *float64          `json:"real_power"`
-	RealPowerEstimated bool              `json:"real_power_estimated"`
-	Temperature        *float64          `json:"temperature"`
-	InputTransferLow   *float64          `json:"input_transfer_low"`
-	InputTransferHigh  *float64          `json:"input_transfer_high"`
-	InputSensitivity   string            `json:"input_sensitivity,omitempty"`
-	UPSModel           string            `json:"ups_model,omitempty"`
-	UPSMfr             string            `json:"ups_mfr,omitempty"`
-	UPSSerial          string            `json:"ups_serial,omitempty"`
-	BatteryType        string            `json:"battery_type,omitempty"`
-	Profile            DeviceProfile     `json:"profile"`
-	Raw                map[string]string `json:"raw,omitempty"`
+	TargetID            string            `json:"target_id,omitempty"`
+	TargetName          string            `json:"target_name,omitempty"`
+	Connected           bool              `json:"connected"`
+	TS                  int64             `json:"ts"`
+	Error               string            `json:"error"`
+	UPSName             string            `json:"ups_name,omitempty"`
+	UPSList             []UPSInfo         `json:"ups_list"`
+	Status              string            `json:"status,omitempty"`
+	StatusFlags         []string          `json:"status_flags,omitempty"`
+	StatusText          string            `json:"status_text,omitempty"`
+	Charge              *float64          `json:"charge"`
+	ChargeLow           *float64          `json:"charge_low"`
+	Load                *float64          `json:"load"`
+	Runtime             *float64          `json:"runtime"`
+	RuntimeLow          *float64          `json:"runtime_low"`
+	InputVoltage        *float64          `json:"input_voltage"`
+	InputVoltageNominal *float64          `json:"input_voltage_nominal"`
+	OutputVoltage       *float64          `json:"output_voltage"`
+	BatteryVoltage      *float64          `json:"battery_voltage"`
+	InputFrequency      *float64          `json:"input_frequency"`
+	RealPower           *float64          `json:"real_power"`
+	RealPowerEstimated  bool              `json:"real_power_estimated"`
+	Temperature         *float64          `json:"temperature"`
+	InputTransferLow    *float64          `json:"input_transfer_low"`
+	InputTransferHigh   *float64          `json:"input_transfer_high"`
+	InputSensitivity    string            `json:"input_sensitivity,omitempty"`
+	BeeperStatus        string            `json:"beeper_status,omitempty"`
+	UPSFirmware         string            `json:"ups_firmware,omitempty"`
+	DriverVersion       string            `json:"driver_version,omitempty"`
+	DriverDataVersion   string            `json:"driver_data_version,omitempty"`
+	UPSModel            string            `json:"ups_model,omitempty"`
+	UPSMfr              string            `json:"ups_mfr,omitempty"`
+	UPSSerial           string            `json:"ups_serial,omitempty"`
+	BatteryType         string            `json:"battery_type,omitempty"`
+	Profile             DeviceProfile     `json:"profile"`
+	Raw                 map[string]string `json:"raw,omitempty"`
 }
 
 type DeviceProfile struct {
@@ -297,16 +304,17 @@ func normalize(upsName string, upsList []UPSInfo, values map[string]string) Stat
 	realPower, estimated := effectiveRealPower(values, profile)
 	return Status{
 		Connected: true, TS: time.Now().Unix(), UPSName: upsName, UPSList: upsList, Status: status,
-		StatusFlags: flags, StatusText: statusText(flags), Charge: floatPointer(values["battery.charge"]),
-		Load: floatPointer(values["ups.load"]), Runtime: floatPointer(values["battery.runtime"]),
-		InputVoltage: floatPointer(values["input.voltage"]), OutputVoltage: floatPointer(values["output.voltage"]),
+		StatusFlags: flags, StatusText: statusText(flags), Charge: floatPointer(values["battery.charge"]), ChargeLow: floatPointer(values["battery.charge.low"]),
+		Load: floatPointer(values["ups.load"]), Runtime: floatPointer(values["battery.runtime"]), RuntimeLow: floatPointer(values["battery.runtime.low"]),
+		InputVoltage: floatPointer(values["input.voltage"]), InputVoltageNominal: floatPointer(values["input.voltage.nominal"]), OutputVoltage: floatPointer(values["output.voltage"]),
 		BatteryVoltage: floatPointer(values["battery.voltage"]), InputFrequency: floatPointer(values["input.frequency"]),
 		RealPower: realPower, RealPowerEstimated: estimated, Temperature: floatPointer(firstNonEmpty(values["ups.temperature"], values["battery.temperature"])),
 		InputTransferLow: floatPointer(values["input.transfer.low"]), InputTransferHigh: floatPointer(values["input.transfer.high"]),
-		InputSensitivity: values["input.sensitivity"],
-		UPSModel:         firstNonEmpty(values["ups.model"], values["device.model"]),
-		UPSMfr:           firstNonEmpty(values["ups.mfr"], values["device.mfr"]),
-		UPSSerial:        firstNonEmpty(values["ups.serial"], values["device.serial"]), BatteryType: values["battery.type"], Profile: profile, Raw: raw,
+		InputSensitivity: values["input.sensitivity"], BeeperStatus: values["ups.beeper.status"],
+		UPSFirmware: values["ups.firmware"], DriverVersion: values["driver.version"], DriverDataVersion: values["driver.version.data"],
+		UPSModel:  firstNonEmpty(values["ups.model"], values["device.model"]),
+		UPSMfr:    firstNonEmpty(values["ups.mfr"], values["device.mfr"]),
+		UPSSerial: firstNonEmpty(values["ups.serial"], values["device.serial"]), BatteryType: values["battery.type"], Profile: profile, Raw: raw,
 	}
 }
 
