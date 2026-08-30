@@ -24,7 +24,7 @@ build_package() {
   awk -F= -v version="$VERSION" -v platform="$platform" '
     $1=="version" {print "version=" version; next}
     $1=="platform" {print "platform=" platform; next}
-    $1=="changelog" {print "changelog=" version " 多架构独立构建、健康检查、可靠错误处理与自动化测试。"; next}
+    $1=="changelog" {print "changelog=" version " 施耐德 APC 识别、功率与市电质量、续航趋势、NUT 能力检测和 BK650M2-CH 防误报。"; next}
     {print}
   ' "$ROOT/package/manifest" > "$stage/manifest"
 

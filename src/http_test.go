@@ -160,6 +160,24 @@ func TestHistoryCSVReportAndDownsampling(t *testing.T) {
 	}
 }
 
+func TestAnalyzeRuntimeTrendDetectsDeclineAtComparableLoad(t *testing.T) {
+	load, charge := 30.0, 100.0
+	history := make([]HistoryItem, 0, 25)
+	for index := 0; index < 25; index++ {
+		runtimeSeconds := 3300.0
+		if index < 5 {
+			runtimeSeconds = 3600
+		} else if index >= 20 {
+			runtimeSeconds = 2700
+		}
+		history = append(history, HistoryItem{TS: int64(index) * 10 * 86400 / 24, Load: &load, Charge: &charge, Runtime: &runtimeSeconds})
+	}
+	trend := analyzeRuntimeTrend(history, Status{Load: &load})
+	if trend.State != "declining" || trend.ChangePercent == nil || *trend.ChangePercent != -25 {
+		t.Fatalf("trend = %#v", trend)
+	}
+}
+
 func TestDashboardRendersReadableDeviceResults(t *testing.T) {
 	app := newTestApp(t)
 	recorder := httptest.NewRecorder()
@@ -168,7 +186,7 @@ func TestDashboardRendersReadableDeviceResults(t *testing.T) {
 		t.Fatalf("dashboard = %d", recorder.Code)
 	}
 	body := recorder.Body.String()
-	for _, text := range []string{"设备信息", "电池信息", "输入电源", "输出与负载", "展开原始 NUT 数据", "近 ${esc(data.days)} 天运行报告", "NUT 拒绝了这项操作：设备要求身份验证"} {
+	for _, text := range []string{"设备信息", "电池信息", "输入电源", "输出与负载", "当前功率", "市电质量", "设备能力检测", "同负载续航趋势", "展开原始 NUT 数据", "近 ${esc(data.days)} 天运行报告", "NUT 拒绝了这项操作：设备要求身份验证"} {
 		if !strings.Contains(body, text) {
 			t.Fatalf("dashboard missing readable result marker %q", text)
 		}

@@ -1,6 +1,15 @@
-# fnOS UPS Monitor 1.0.1（x86 / ARM64 独立包）
+# fnOS UPS Monitor 1.1.0（x86 / ARM64 独立包）
 
 这是面向 fnOS x86_64 与 ARM64 NAS 的轻量 UPS 监控 FPK 项目。两种架构使用同一套源码，分别生成安装包。
+
+## 1.1.0
+
+- 自动识别施耐德 APC Back-UPS BK650M2-CH，展示 650VA、390W 和铅酸电池资料。
+- 设备未直接报告功率时，按额定功率与负载率显示明确标注的估算功率。
+- 显示输入电压、允许切换范围和灵敏度，直接判断当前市电质量。
+- 按相近负载、充足电量的历史续航判断电池老化趋势，不依赖不可靠的生产日期。
+- 通过 NUT `LIST CMD` 和 `LIST RW` 自动发现命令及可调参数，只显示设备实际支持的自检按钮。
+- 针对 BK650M2-CH 过滤 `OL DISCHRG` 和短暂 `LB/RB` 误报，计划自检执行前也会验证设备能力。
 
 ## 1.0.1
 
@@ -69,8 +78,8 @@
 输出：
 
 ```text
-dist/fnos-ups-monitor_1.0.1_x86.fpk
-dist/fnos-ups-monitor_1.0.1_arm.fpk
+dist/fnos-ups-monitor_1.1.0_x86.fpk
+dist/fnos-ups-monitor_1.1.0_arm.fpk
 ```
 
 ## 官方 fnpack 1.2.3 构建
@@ -86,8 +95,8 @@ dist/fnos-ups-monitor_1.0.1_arm.fpk
 输出：
 
 ```text
-dist/fnos-ups-monitor_1.0.1_x86.fpk
-dist/fnos-ups-monitor_1.0.1_arm.fpk
+dist/fnos-ups-monitor_1.1.0_x86.fpk
+dist/fnos-ups-monitor_1.1.0_arm.fpk
 ```
 
 ## 安装后的日志

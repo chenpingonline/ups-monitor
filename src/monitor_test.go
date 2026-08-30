@@ -158,6 +158,29 @@ func TestMonitorPollsMultipleNUTTargets(t *testing.T) {
 	}
 }
 
+func TestBK650M2FiltersKnownTransientStatusQuirks(t *testing.T) {
+	state := &targetRuntime{Rules: map[string]*alertState{}, TransientSince: map[string]int64{}}
+	status := Status{
+		Status: "OL DISCHRG LB RB", StatusFlags: []string{"OL", "DISCHRG", "LB", "RB"},
+		Profile: DeviceProfile{Brand: "施耐德 APC", Model: "Back-UPS BK650M2-CH"},
+	}
+	filtered := filterKnownUPSQuirks(status, state, 100)
+	if filtered.Status != "OL" || filtered.StatusText != "市电供电" {
+		t.Fatalf("initial filtered status = %#v", filtered)
+	}
+	filtered = filterKnownUPSQuirks(status, state, 116)
+	if filtered.Status != "OL LB RB" || !contains(filtered.StatusFlags, "LB") || !contains(filtered.StatusFlags, "RB") {
+		t.Fatalf("persistent filtered status = %#v", filtered)
+	}
+	clear := status
+	clear.Status = "OL DISCHRG"
+	clear.StatusFlags = []string{"OL", "DISCHRG"}
+	filtered = filterKnownUPSQuirks(clear, state, 117)
+	if filtered.Status != "OL" || len(state.TransientSince) != 0 {
+		t.Fatalf("cleared filtered status = %#v state = %#v", filtered, state.TransientSince)
+	}
+}
+
 func TestCancelShutdownClearsPendingRequest(t *testing.T) {
 	directory := t.TempDir()
 	config, err := OpenConfigStore(filepath.Join(directory, "config.json"))

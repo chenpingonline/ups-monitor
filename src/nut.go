@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -17,30 +18,50 @@ type UPSInfo struct {
 }
 
 type Status struct {
-	TargetID       string            `json:"target_id,omitempty"`
-	TargetName     string            `json:"target_name,omitempty"`
-	Connected      bool              `json:"connected"`
-	TS             int64             `json:"ts"`
-	Error          string            `json:"error"`
-	UPSName        string            `json:"ups_name,omitempty"`
-	UPSList        []UPSInfo         `json:"ups_list"`
-	Status         string            `json:"status,omitempty"`
-	StatusFlags    []string          `json:"status_flags,omitempty"`
-	StatusText     string            `json:"status_text,omitempty"`
-	Charge         *float64          `json:"charge"`
-	Load           *float64          `json:"load"`
-	Runtime        *float64          `json:"runtime"`
-	InputVoltage   *float64          `json:"input_voltage"`
-	OutputVoltage  *float64          `json:"output_voltage"`
-	BatteryVoltage *float64          `json:"battery_voltage"`
-	InputFrequency *float64          `json:"input_frequency"`
-	RealPower      *float64          `json:"real_power"`
-	Temperature    *float64          `json:"temperature"`
-	UPSModel       string            `json:"ups_model,omitempty"`
-	UPSMfr         string            `json:"ups_mfr,omitempty"`
-	UPSSerial      string            `json:"ups_serial,omitempty"`
-	BatteryType    string            `json:"battery_type,omitempty"`
-	Raw            map[string]string `json:"raw,omitempty"`
+	TargetID           string            `json:"target_id,omitempty"`
+	TargetName         string            `json:"target_name,omitempty"`
+	Connected          bool              `json:"connected"`
+	TS                 int64             `json:"ts"`
+	Error              string            `json:"error"`
+	UPSName            string            `json:"ups_name,omitempty"`
+	UPSList            []UPSInfo         `json:"ups_list"`
+	Status             string            `json:"status,omitempty"`
+	StatusFlags        []string          `json:"status_flags,omitempty"`
+	StatusText         string            `json:"status_text,omitempty"`
+	Charge             *float64          `json:"charge"`
+	Load               *float64          `json:"load"`
+	Runtime            *float64          `json:"runtime"`
+	InputVoltage       *float64          `json:"input_voltage"`
+	OutputVoltage      *float64          `json:"output_voltage"`
+	BatteryVoltage     *float64          `json:"battery_voltage"`
+	InputFrequency     *float64          `json:"input_frequency"`
+	RealPower          *float64          `json:"real_power"`
+	RealPowerEstimated bool              `json:"real_power_estimated"`
+	Temperature        *float64          `json:"temperature"`
+	InputTransferLow   *float64          `json:"input_transfer_low"`
+	InputTransferHigh  *float64          `json:"input_transfer_high"`
+	InputSensitivity   string            `json:"input_sensitivity,omitempty"`
+	UPSModel           string            `json:"ups_model,omitempty"`
+	UPSMfr             string            `json:"ups_mfr,omitempty"`
+	UPSSerial          string            `json:"ups_serial,omitempty"`
+	BatteryType        string            `json:"battery_type,omitempty"`
+	Profile            DeviceProfile     `json:"profile"`
+	Raw                map[string]string `json:"raw,omitempty"`
+}
+
+type DeviceProfile struct {
+	Brand            string   `json:"brand,omitempty"`
+	Series           string   `json:"series,omitempty"`
+	Model            string   `json:"model,omitempty"`
+	CapacityVA       int      `json:"capacity_va,omitempty"`
+	RatedPowerW      int      `json:"rated_power_w,omitempty"`
+	BatteryChemistry string   `json:"battery_chemistry,omitempty"`
+	KnownQuirks      []string `json:"known_quirks,omitempty"`
+}
+
+type NUTCapabilities struct {
+	Commands     []string `json:"commands"`
+	WritableVars []string `json:"writable_vars"`
 }
 
 type NutClient struct {
@@ -204,6 +225,50 @@ func (n NutClient) Vars(upsName string) (map[string]string, error) {
 	return values, nil
 }
 
+func (n NutClient) Capabilities(upsName string) (NUTCapabilities, error) {
+	commands, err := n.Commands(upsName)
+	if err != nil {
+		return NUTCapabilities{}, err
+	}
+	writableVars, err := n.WritableVars(upsName)
+	if err != nil {
+		return NUTCapabilities{}, err
+	}
+	return NUTCapabilities{Commands: commands, WritableVars: writableVars}, nil
+}
+
+func (n NutClient) Commands(upsName string) ([]string, error) {
+	commandsText, err := n.command("LIST CMD " + upsName)
+	if err != nil {
+		return nil, err
+	}
+	commands := []string{}
+	for _, line := range strings.Split(commandsText, "\n") {
+		fields := splitNut(line)
+		if len(fields) >= 3 && fields[0] == "CMD" && fields[1] == upsName {
+			commands = append(commands, fields[2])
+		}
+	}
+	sort.Strings(commands)
+	return commands, nil
+}
+
+func (n NutClient) WritableVars(upsName string) ([]string, error) {
+	writableText, err := n.command("LIST RW " + upsName)
+	if err != nil {
+		return nil, err
+	}
+	writableVars := []string{}
+	for _, line := range strings.Split(writableText, "\n") {
+		fields := splitNut(line)
+		if len(fields) >= 3 && fields[0] == "RW" && fields[1] == upsName {
+			writableVars = append(writableVars, fields[2])
+		}
+	}
+	sort.Strings(writableVars)
+	return writableVars, nil
+}
+
 func floatPointer(value string) *float64 {
 	if value == "" {
 		return nil
@@ -224,6 +289,28 @@ var statusLabels = map[string]string{
 func normalize(upsName string, upsList []UPSInfo, values map[string]string) Status {
 	status := values["ups.status"]
 	flags := strings.Fields(status)
+	raw := make(map[string]string, len(values))
+	for key, value := range values {
+		raw[key] = value
+	}
+	profile := identifyDevice(values)
+	realPower, estimated := effectiveRealPower(values, profile)
+	return Status{
+		Connected: true, TS: time.Now().Unix(), UPSName: upsName, UPSList: upsList, Status: status,
+		StatusFlags: flags, StatusText: statusText(flags), Charge: floatPointer(values["battery.charge"]),
+		Load: floatPointer(values["ups.load"]), Runtime: floatPointer(values["battery.runtime"]),
+		InputVoltage: floatPointer(values["input.voltage"]), OutputVoltage: floatPointer(values["output.voltage"]),
+		BatteryVoltage: floatPointer(values["battery.voltage"]), InputFrequency: floatPointer(values["input.frequency"]),
+		RealPower: realPower, RealPowerEstimated: estimated, Temperature: floatPointer(firstNonEmpty(values["ups.temperature"], values["battery.temperature"])),
+		InputTransferLow: floatPointer(values["input.transfer.low"]), InputTransferHigh: floatPointer(values["input.transfer.high"]),
+		InputSensitivity: values["input.sensitivity"],
+		UPSModel:         firstNonEmpty(values["ups.model"], values["device.model"]),
+		UPSMfr:           firstNonEmpty(values["ups.mfr"], values["device.mfr"]),
+		UPSSerial:        firstNonEmpty(values["ups.serial"], values["device.serial"]), BatteryType: values["battery.type"], Profile: profile, Raw: raw,
+	}
+}
+
+func statusText(flags []string) string {
 	texts := make([]string, 0, len(flags))
 	for _, flag := range flags {
 		if label := statusLabels[flag]; label != "" {
@@ -232,34 +319,47 @@ func normalize(upsName string, upsList []UPSInfo, values map[string]string) Stat
 			texts = append(texts, flag)
 		}
 	}
-	raw := make(map[string]string, len(values))
-	for key, value := range values {
-		raw[key] = value
-	}
-	return Status{
-		Connected: true, TS: time.Now().Unix(), UPSName: upsName, UPSList: upsList, Status: status,
-		StatusFlags: flags, StatusText: strings.Join(texts, " / "), Charge: floatPointer(values["battery.charge"]),
-		Load: floatPointer(values["ups.load"]), Runtime: floatPointer(values["battery.runtime"]),
-		InputVoltage: floatPointer(values["input.voltage"]), OutputVoltage: floatPointer(values["output.voltage"]),
-		BatteryVoltage: floatPointer(values["battery.voltage"]), InputFrequency: floatPointer(values["input.frequency"]),
-		RealPower: effectiveRealPower(values), Temperature: floatPointer(firstNonEmpty(values["ups.temperature"], values["battery.temperature"])),
-		UPSModel:  firstNonEmpty(values["ups.model"], values["device.model"]),
-		UPSMfr:    firstNonEmpty(values["ups.mfr"], values["device.mfr"]),
-		UPSSerial: firstNonEmpty(values["ups.serial"], values["device.serial"]), BatteryType: values["battery.type"], Raw: raw,
-	}
+	return strings.Join(texts, " / ")
 }
 
-func effectiveRealPower(values map[string]string) *float64 {
+func effectiveRealPower(values map[string]string, profile DeviceProfile) (*float64, bool) {
 	if direct := floatPointer(values["ups.realpower"]); direct != nil {
-		return direct
+		return direct, false
 	}
 	nominal := floatPointer(values["ups.realpower.nominal"])
+	if nominal == nil && profile.RatedPowerW > 0 {
+		value := float64(profile.RatedPowerW)
+		nominal = &value
+	}
 	load := floatPointer(values["ups.load"])
 	if nominal == nil || load == nil {
-		return nil
+		return nil, false
 	}
 	value := *nominal * *load / 100
-	return &value
+	return &value, true
+}
+
+func identifyDevice(values map[string]string) DeviceProfile {
+	manufacturer := firstNonEmpty(values["ups.mfr"], values["device.mfr"])
+	model := firstNonEmpty(values["ups.model"], values["device.model"])
+	profile := DeviceProfile{Brand: manufacturer, Model: model}
+	upperModel := strings.ToUpper(model)
+	upperManufacturer := strings.ToUpper(manufacturer)
+	if strings.Contains(upperModel, "BK650M2-CH") && (strings.Contains(upperManufacturer, "APC") || strings.Contains(upperManufacturer, "AMERICAN POWER CONVERSION")) {
+		profile.Brand = "施耐德 APC"
+		profile.Series = "Back-UPS"
+		profile.CapacityVA = 650
+		profile.RatedPowerW = 390
+		profile.BatteryChemistry = "铅酸电池"
+		profile.KnownQuirks = []string{"市电状态可能同时上报 OL DISCHRG", "部分 NUT/固件组合可能短暂误报 LB/RB", "电池生产日期 2001/01/01 通常是无效占位值"}
+	}
+	if nominal := floatPointer(values["ups.realpower.nominal"]); nominal != nil {
+		profile.RatedPowerW = int(*nominal + 0.5)
+	}
+	if profile.BatteryChemistry == "" && strings.EqualFold(values["battery.type"], "PbAc") {
+		profile.BatteryChemistry = "铅酸电池"
+	}
+	return profile
 }
 
 func firstNonEmpty(first, second string) string {

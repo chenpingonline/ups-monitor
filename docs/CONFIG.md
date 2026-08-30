@@ -1,4 +1,4 @@
-# UPS Monitor 1.0.1 高级配置
+# UPS Monitor 1.1.0 高级配置
 
 高级配置可以在 Web UI 中编辑。保存前会执行严格校验，旧版 `nut_host`、`nut_port`、`ups_name` 配置仍然兼容。
 
@@ -67,6 +67,12 @@
 ```
 
 告警指标支持 `charge`、`runtime`、`load`、`input_voltage`、`output_voltage`、`battery_voltage`、`input_frequency`、`real_power`、`temperature`。运算符支持 `lt`、`lte`、`gt`、`gte`。
+
+## UPS 控制账号与能力检测
+
+监控状态不需要 NUT 控制账号。快速自检、深度自检和停止自检等控制操作需要在对应 `targets` 中配置 `username` 与 `password`，并在 NUT 的 `upsd.users` 中授予相应命令权限。
+
+页面会通过 NUT `LIST CMD` 与 `LIST RW` 查询当前硬件实际支持的命令和可调参数。未被设备报告的自检按钮不会显示；计划自检也会先检查命令是否受支持，再发送控制命令。可调参数当前仅展示，不会自动修改 UPS 设置。
 
 通知类型支持 `webhook`、`ntfy`、`gotify`、`telegram`、`wecom`、`dingtalk`。待发送任务保存在应用数据目录的 `notification-queue/` 中；成功后删除，失败时指数退避重试，重试耗尽后写入事件记录。
 

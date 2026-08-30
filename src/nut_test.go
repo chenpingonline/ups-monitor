@@ -79,6 +79,58 @@ func TestNormalizeMapsStatusAndMetrics(t *testing.T) {
 	}
 }
 
+func TestNormalizeIdentifiesSchneiderAPCAndEstimatesPower(t *testing.T) {
+	status := normalize("main", []UPSInfo{{Name: "main"}}, map[string]string{
+		"ups.status": "OL DISCHRG", "device.mfr": "American Power Conversion", "device.model": "Back-UPS BK650M2-CH",
+		"ups.load": "25", "input.voltage": "232", "input.transfer.low": "160", "input.transfer.high": "278", "battery.type": "PbAc",
+	})
+	if status.Profile.Brand != "施耐德 APC" || status.Profile.CapacityVA != 650 || status.Profile.RatedPowerW != 390 || status.Profile.BatteryChemistry != "铅酸电池" {
+		t.Fatalf("Profile = %#v", status.Profile)
+	}
+	if status.RealPower == nil || *status.RealPower != 97.5 || !status.RealPowerEstimated {
+		t.Fatalf("RealPower = %v, estimated = %v", status.RealPower, status.RealPowerEstimated)
+	}
+	if status.InputTransferLow == nil || *status.InputTransferLow != 160 || status.InputTransferHigh == nil || *status.InputTransferHigh != 278 {
+		t.Fatalf("transfer range = %v - %v", status.InputTransferLow, status.InputTransferHigh)
+	}
+}
+
+func TestNutClientDiscoversCommandsAndWritableVars(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	go func() {
+		for requestNumber := 0; requestNumber < 2; requestNumber++ {
+			connection, acceptErr := listener.Accept()
+			if acceptErr != nil {
+				return
+			}
+			line, _ := bufio.NewReader(connection).ReadString('\n')
+			switch line {
+			case "LIST CMD main\n":
+				_, _ = fmt.Fprint(connection, "BEGIN LIST CMD main\nCMD main test.battery.start.quick\nCMD main beeper.mute\nEND LIST CMD main\n")
+			case "LIST RW main\n":
+				_, _ = fmt.Fprint(connection, "BEGIN LIST RW main\nRW main input.sensitivity medium\nRW main battery.charge.low 10\nEND LIST RW main\n")
+			}
+			_ = connection.Close()
+		}
+	}()
+	address := listener.Addr().(*net.TCPAddr)
+	client := NutClient{Host: "127.0.0.1", Port: address.Port, Timeout: time.Second}
+	capabilities, err := client.Capabilities("main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(capabilities.Commands, []string{"beeper.mute", "test.battery.start.quick"}) {
+		t.Fatalf("Commands = %#v", capabilities.Commands)
+	}
+	if !reflect.DeepEqual(capabilities.WritableVars, []string{"battery.charge.low", "input.sensitivity"}) {
+		t.Fatalf("WritableVars = %#v", capabilities.WritableVars)
+	}
+}
+
 func TestInstantCommandAuthenticatesAndRestrictsCommands(t *testing.T) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

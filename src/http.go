@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"sort"
 	"strconv"
@@ -82,6 +83,9 @@ func (a *App) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 				"charge": status.Charge, "load": status.Load, "runtime": status.Runtime,
 				"input_voltage": status.InputVoltage, "output_voltage": status.OutputVoltage,
 				"battery_voltage": status.BatteryVoltage, "input_frequency": status.InputFrequency,
+				"real_power": status.RealPower, "real_power_estimated": status.RealPowerEstimated, "temperature": status.Temperature,
+				"input_transfer_low": status.InputTransferLow, "input_transfer_high": status.InputTransferHigh,
+				"input_sensitivity": status.InputSensitivity, "profile": status.Profile,
 				"ups_model": status.UPSModel, "ups_mfr": status.UPSMfr, "ups_serial": status.UPSSerial,
 				"battery_type": status.BatteryType, "raw": status.Raw,
 				"version": version,
@@ -96,6 +100,11 @@ func (a *App) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 			for _, status := range a.mon.GetAll() {
 				score := 100
 				reasons := []string{}
+				history, historyErr := a.store.HistoryFor(24*90, status.TargetID)
+				trend := analyzeRuntimeTrend(history, status)
+				if historyErr != nil {
+					trend = RuntimeTrend{State: "unavailable", Message: "历史数据读取失败，暂时无法分析续航趋势"}
+				}
 				if contains(status.StatusFlags, "RB") {
 					score -= 60
 					reasons = append(reasons, "UPS 报告需要更换电池")
@@ -112,10 +121,17 @@ func (a *App) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 					score -= 30
 					reasons = append(reasons, "最近一次 UPS 自检未通过："+status.Raw["ups.test.result"])
 				}
+				if trend.State == "declining" {
+					score -= 20
+					reasons = append(reasons, "相近负载下的预计续航较早期下降超过 20%")
+				} else if trend.State == "watch" {
+					score -= 10
+					reasons = append(reasons, "相近负载下的预计续航呈下降趋势")
+				}
 				if score < 0 {
 					score = 0
 				}
-				items = append(items, map[string]any{"target_id": status.TargetID, "target_name": status.TargetName, "score": score, "reasons": reasons, "status": status.Status})
+				items = append(items, map[string]any{"target_id": status.TargetID, "target_name": status.TargetName, "score": score, "reasons": reasons, "status": status.Status, "runtime_trend": trend})
 			}
 			jsonOut(writer, http.StatusOK, map[string]any{"items": items, "method": "基于 NUT 状态的启发式评分，不替代厂商电池检测"})
 			return
@@ -123,11 +139,39 @@ func (a *App) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 			targetID := request.URL.Query().Get("target_id")
 			for _, status := range a.mon.GetAll() {
 				if targetID == "" || status.TargetID == targetID {
-					jsonOut(writer, http.StatusOK, map[string]any{"target_id": status.TargetID, "target_name": status.TargetName, "raw": status.Raw})
+					jsonOut(writer, http.StatusOK, map[string]any{"target_id": status.TargetID, "target_name": status.TargetName, "status": status, "profile": status.Profile, "raw": status.Raw})
 					return
 				}
 			}
 			jsonOut(writer, http.StatusNotFound, map[string]string{"error": "UPS 目标不存在"})
+			return
+		case "/api/ups/capabilities":
+			target, upsName, ok := a.targetAndUPS(request.URL.Query().Get("target_id"))
+			if !ok {
+				jsonOut(writer, http.StatusNotFound, map[string]string{"error": "NUT 目标或 UPS 名称不存在"})
+				return
+			}
+			client := NutClient{Host: target.Host, Port: target.Port, Timeout: 4 * time.Second, Username: target.Username, Password: target.Password}
+			commands, commandsErr := client.Commands(upsName)
+			writableVars, writableErr := client.WritableVars(upsName)
+			if commandsErr != nil && writableErr != nil {
+				jsonOut(writer, http.StatusBadGateway, map[string]string{"error": "读取 UPS 能力失败：" + commandsErr.Error()})
+				return
+			}
+			errorsByType := map[string]string{}
+			if commandsErr != nil {
+				errorsByType["commands"] = commandsErr.Error()
+			}
+			if writableErr != nil {
+				errorsByType["writable_vars"] = writableErr.Error()
+			}
+			safeCommands := []string{}
+			for _, command := range []string{"test.battery.start.quick", "test.battery.start.deep", "test.battery.stop"} {
+				if contains(commands, command) {
+					safeCommands = append(safeCommands, command)
+				}
+			}
+			jsonOut(writer, http.StatusOK, map[string]any{"target_id": target.ID, "ups_name": upsName, "commands": commands, "writable_vars": writableVars, "safe_commands": safeCommands, "username_configured": target.Username != "", "errors": errorsByType})
 			return
 		case "/api/health", "/api/readiness":
 			health := a.mon.Health()
@@ -354,6 +398,15 @@ func (a *App) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 				return
 			}
 			client := NutClient{Host: target.Host, Port: target.Port, Timeout: 4 * time.Second, Username: target.Username, Password: target.Password}
+			commands, err := client.Commands(upsName)
+			if err != nil {
+				jsonOut(writer, http.StatusBadGateway, map[string]string{"error": "无法确认 UPS 支持的自检能力：" + err.Error()})
+				return
+			}
+			if !contains(commands, input.Command) {
+				jsonOut(writer, http.StatusConflict, map[string]string{"error": "当前 UPS 未报告支持命令：" + input.Command})
+				return
+			}
 			if err := client.InstantCommand(upsName, input.Command); err != nil {
 				jsonOut(writer, http.StatusBadGateway, map[string]string{"error": err.Error()})
 				return
@@ -374,6 +427,109 @@ func (a *App) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		}
 	}
 	jsonOut(writer, http.StatusNotFound, map[string]string{"error": "not found"})
+}
+
+func (a *App) targetAndUPS(targetID string) (NUTTarget, string, bool) {
+	targets := a.cfg.Get().EffectiveTargets()
+	if targetID == "" && len(targets) > 0 {
+		targetID = targets[0].ID
+	}
+	for _, target := range targets {
+		if target.ID != targetID {
+			continue
+		}
+		upsName := target.UPSName
+		if upsName == "" {
+			for _, status := range a.mon.GetAll() {
+				if status.TargetID == target.ID {
+					upsName = status.UPSName
+					break
+				}
+			}
+		}
+		return target, upsName, upsName != ""
+	}
+	return NUTTarget{}, "", false
+}
+
+type RuntimeTrend struct {
+	State           string   `json:"state"`
+	Message         string   `json:"message"`
+	ChangePercent   *float64 `json:"change_percent,omitempty"`
+	BaselineSeconds *float64 `json:"baseline_seconds,omitempty"`
+	RecentSeconds   *float64 `json:"recent_seconds,omitempty"`
+	SampleCount     int      `json:"sample_count"`
+	SpanDays        float64  `json:"span_days"`
+}
+
+func analyzeRuntimeTrend(history []HistoryItem, current Status) RuntimeTrend {
+	result := RuntimeTrend{State: "collecting", Message: "正在积累相近负载且电量充足时的续航样本"}
+	if current.Load == nil {
+		result.Message = "设备未报告负载，无法比较相同负载下的续航"
+		return result
+	}
+	samples := make([]HistoryItem, 0, len(history))
+	for _, item := range history {
+		if item.Load == nil || item.Runtime == nil || item.Charge == nil || *item.Runtime <= 0 || *item.Charge < 90 {
+			continue
+		}
+		if math.Abs(*item.Load-*current.Load) > 5 {
+			continue
+		}
+		samples = append(samples, item)
+	}
+	sort.Slice(samples, func(i, j int) bool { return samples[i].TS < samples[j].TS })
+	result.SampleCount = len(samples)
+	if len(samples) > 1 {
+		result.SpanDays = float64(samples[len(samples)-1].TS-samples[0].TS) / 86400
+	}
+	if len(samples) < 20 || result.SpanDays < 7 {
+		result.Message = fmt.Sprintf("已积累 %d 个可比较样本，需要至少 20 个且覆盖 7 天", len(samples))
+		return result
+	}
+	window := max(5, len(samples)/5)
+	baseline := medianRuntime(samples[:window])
+	recent := medianRuntime(samples[len(samples)-window:])
+	if baseline <= 0 {
+		return result
+	}
+	change := (recent - baseline) / baseline * 100
+	result.BaselineSeconds = &baseline
+	result.RecentSeconds = &recent
+	result.ChangePercent = &change
+	switch {
+	case change <= -20:
+		result.State = "declining"
+		result.Message = fmt.Sprintf("相近负载下预计续航下降 %.1f%%，建议安排电池检查", -change)
+	case change <= -10:
+		result.State = "watch"
+		result.Message = fmt.Sprintf("相近负载下预计续航下降 %.1f%%，建议继续观察", -change)
+	case change >= 10:
+		result.State = "improving"
+		result.Message = fmt.Sprintf("相近负载下预计续航提升 %.1f%%", change)
+	default:
+		result.State = "stable"
+		result.Message = fmt.Sprintf("相近负载下预计续航变化 %.1f%%，整体稳定", change)
+	}
+	return result
+}
+
+func medianRuntime(items []HistoryItem) float64 {
+	values := make([]float64, 0, len(items))
+	for _, item := range items {
+		if item.Runtime != nil {
+			values = append(values, *item.Runtime)
+		}
+	}
+	sort.Float64s(values)
+	if len(values) == 0 {
+		return 0
+	}
+	middle := len(values) / 2
+	if len(values)%2 == 0 {
+		return (values[middle-1] + values[middle]) / 2
+	}
+	return values[middle]
 }
 
 func downsampleHistory(items []HistoryItem, maxPoints int) []HistoryItem {

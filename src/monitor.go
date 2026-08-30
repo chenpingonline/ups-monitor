@@ -31,6 +31,7 @@ type targetRuntime struct {
 	OnBatterySince    int64
 	ShutdownRequested atomic.Bool
 	Rules             map[string]*alertState
+	TransientSince    map[string]int64
 	LastSelfTest      int64
 }
 
@@ -157,10 +158,49 @@ func (m *Monitor) targetState(id string) *targetRuntime {
 	defer m.runtimeMu.Unlock()
 	state := m.runtime[id]
 	if state == nil {
-		state = &targetRuntime{Rules: map[string]*alertState{}}
+		state = &targetRuntime{Rules: map[string]*alertState{}, TransientSince: map[string]int64{}}
 		m.runtime[id] = state
 	}
 	return state
+}
+
+func filterKnownUPSQuirks(status Status, state *targetRuntime, now int64) Status {
+	if status.Profile.Brand != "施耐德 APC" || !strings.Contains(strings.ToUpper(status.Profile.Model), "BK650M2-CH") {
+		return status
+	}
+	if state.TransientSince == nil {
+		state.TransientSince = map[string]int64{}
+	}
+	flags := append([]string(nil), status.StatusFlags...)
+	if contains(flags, "OL") && !contains(flags, "OB") {
+		filtered := make([]string, 0, len(flags))
+		for _, flag := range flags {
+			if flag == "DISCHRG" {
+				continue
+			}
+			if flag == "LB" || flag == "RB" {
+				since := state.TransientSince[flag]
+				if since == 0 {
+					state.TransientSince[flag] = now
+					since = now
+				}
+				if now-since < 15 {
+					continue
+				}
+			}
+			filtered = append(filtered, flag)
+		}
+		flags = filtered
+	}
+	for _, flag := range []string{"LB", "RB"} {
+		if !contains(status.StatusFlags, flag) {
+			delete(state.TransientSince, flag)
+		}
+	}
+	status.StatusFlags = flags
+	status.Status = strings.Join(flags, " ")
+	status.StatusText = statusText(flags)
+	return status
 }
 
 func contains(values []string, target string) bool {
@@ -480,6 +520,7 @@ func (m *Monitor) pollTarget(config Config, target NUTTarget, now time.Time) err
 	current.TargetName = target.Name
 	previous := m.statusFor(target.ID)
 	state := m.targetState(target.ID)
+	current = filterKnownUPSQuirks(current, state, now.Unix())
 	m.transitions(target.ID, state, current, previous)
 	m.set(current)
 	if state.WasConnected != nil && !*state.WasConnected {
@@ -505,7 +546,12 @@ func (m *Monitor) pollTarget(config Config, target NUTTarget, now time.Time) err
 			state.LastSelfTest = now.Unix()
 		} else if now.Unix()-state.LastSelfTest >= int64(config.SelfTest.IntervalDays)*86400 {
 			state.LastSelfTest = now.Unix()
-			if err := client.InstantCommand(upsName, config.SelfTest.Command); err != nil {
+			commands, err := client.Commands(upsName)
+			if err != nil {
+				m.emit(target.ID, "warning", "self_test_failed", target.Name+"：计划 UPS 自检能力检测失败："+err.Error())
+			} else if !contains(commands, config.SelfTest.Command) {
+				m.emit(target.ID, "warning", "self_test_failed", target.Name+"：设备未报告支持计划自检命令："+config.SelfTest.Command)
+			} else if err := client.InstantCommand(upsName, config.SelfTest.Command); err != nil {
 				m.emit(target.ID, "warning", "self_test_failed", target.Name+"：计划 UPS 自检启动失败："+err.Error())
 			} else {
 				m.emit(target.ID, "info", "self_test", target.Name+"：已启动计划 UPS 自检："+config.SelfTest.Command)
