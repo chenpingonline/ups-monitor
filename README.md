@@ -1,88 +1,86 @@
-# fnOS UPS Monitor 1.2.1（x86 / ARM64 独立包）
+<p align="center">
+  <img src="package/ICON_256.PNG" alt="UPS Monitor" width="112" />
+</p>
 
-这是面向 fnOS x86_64 与 ARM64 NAS 的轻量 UPS 监控 FPK 项目。两种架构使用同一套源码，分别生成安装包。
+<h1 align="center">UPS Monitor for fnOS</h1>
 
-## 1.2.1
+<p align="center">
+  面向飞牛 fnOS 的原生 UPS 监控应用，通过本机或远程 NUT 服务查看设备状态、历史趋势和事件告警。
+</p>
 
-- 首页重构为状态驾驶舱，设备状态、电量、续航、负载、估算功率和电压一屏可见。
-- 趋势与最近事件形成主工作区，设备详情、电池健康、运行报告和设置收拢为底部快捷入口。
-- 高级配置、自检和原始 NUT 数据移入弹窗，避免监控首页被配置 JSON 占满。
-- 加入施耐德 APC UPS 产品图，并适配桌面、平板和窄屏布局。
+<p align="center">
+  <a href="https://github.com/chenpingonline/ups-monitor/releases/latest"><img src="https://img.shields.io/github/v/release/chenpingonline/ups-monitor?label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC&color=blue" alt="Latest Release" /></a>
+  <a href="https://github.com/chenpingonline/ups-monitor/releases"><img src="https://img.shields.io/github/downloads/chenpingonline/ups-monitor/total?label=%E4%B8%8B%E8%BD%BD" alt="Downloads" /></a>
+  <img src="https://img.shields.io/badge/fnOS-x86__64%20%7C%20ARM64-26a269" alt="fnOS x86_64 and ARM64" />
+</p>
 
-## 1.1.1
+> [!IMPORTANT]
+> 这是社区维护的非官方第三方应用。应用只读取 NUT 服务提供的 UPS 数据，不会安装 NUT，也不会修改 fnOS 或 UPS 的系统配置。
 
-- 概览和设备详情直接显示设备上报的低续航阈值。
-- 设备详情增加蜂鸣器状态、NUT 驱动版本、驱动数据版本和内部驱动版本。
-- 历史趋势支持切换电量/负载、输入/输出电压、电池电压、预计续航和功率。
-- 不同单位使用独立自适应纵轴，保留 1 小时、24 小时、7 天和 30 天范围。
+## 功能
 
-## 1.1.0
+- **实时状态**：集中显示供电状态、电池电量、预计续航、负载、功率和电压。
+- **历史趋势**：查看 1 小时、24 小时、7 天和 30 天的电量、负载、电压、续航及功率变化。
+- **事件记录**：按时间筛选并分页查看告警，最新事件优先显示。
+- **设备信息**：展示型号、序列号、固件、NUT 驱动、电池信息和原始变量。
+- **多 UPS 监控**：支持配置多个本机或远程 NUT 目标。
+- **告警与通知**：支持 Webhook、ntfy、Gotify、Telegram、企业微信和钉钉。
+- **设备能力检测**：通过 NUT 自动识别设备支持的命令和可调参数，仅展示实际可用的自检操作。
+- **运行集成**：支持 MQTT 状态发布、Prometheus 指标、历史 CSV 导出和 API Token。
+- **安全关机策略**：默认关闭且处于演练模式，真实关机需要同时通过多重安全门禁。
+- **fnOS 风格界面**：提供状态、趋势、事件、设备和设置五个页面，支持浅色、暗色及跟随系统主题。
 
-- 自动识别施耐德 APC Back-UPS BK650M2-CH，展示 650VA、390W 和铅酸电池资料。
-- 设备未直接报告功率时，按额定功率与负载率显示明确标注的估算功率。
-- 显示输入电压、允许切换范围和灵敏度，直接判断当前市电质量。
-- 按相近负载、充足电量的历史续航判断电池老化趋势，不依赖不可靠的生产日期。
-- 通过 NUT `LIST CMD` 和 `LIST RW` 自动发现命令及可调参数，只显示设备实际支持的自检按钮。
-- 针对 BK650M2-CH 过滤 `OL DISCHRG` 和短暂 `LB/RB` 误报，计划自检执行前也会验证设备能力。
+## 使用要求
 
-## 1.0.1
+- 飞牛 fnOS NAS，处理器架构为 x86_64 或 ARM64。
+- NAS 本机或局域网内已有可访问的 [Network UPS Tools（NUT）](https://networkupstools.org/) 服务。
+- NUT 默认端口为 `3493`；只读监控通常不需要控制账号。
+- 执行 UPS 自检等控制操作时，需要在 NUT 中配置具备相应权限的用户名和密码。
 
-- 设备详情改为状态摘要以及设备、电池、输入、输出分组信息卡，原始 NUT 数据默认折叠。
-- 30 天报告、电池健康和关机计划改为中文可视化摘要。
-- `ERR USERNAME-REQUIRED` 等 NUT 错误显示中文原因和配置建议。
+## 下载
 
-## 1.0.0
+请只从本仓库的 [GitHub Releases](https://github.com/chenpingonline/ups-monitor/releases/latest) 下载正式安装包。
 
-- 多 NUT 服务器、多 UPS 目标统一监控，旧版单目标配置自动兼容。
-- 按设备查看实时数据、完整 NUT 原始变量、1 小时至 30 天趋势和事件。
-- 支持电量、续航、负载、电压、频率、功率、温度规则告警，包含持续时间、恢复迟滞和冷却提醒。
-- Webhook、ntfy、Gotify、Telegram、企业微信、钉钉通知使用磁盘持久化队列和指数退避重试。
-- 电池健康评分、UPS 快速/深度自检白名单和计划自检。
-- Prometheus `/metrics`、MQTT 状态发布、API Token。
-- 停电次数/时长、能耗估算、JSON/CSV 导出。
-- 默认关闭且默认为演练模式的关机策略；实际关机需要配置确认短语和进程环境门禁，并在倒计时结束前再次检查市电状态。
+| fnOS 设备架构 | Release 文件 |
+| --- | --- |
+| Intel / AMD x86_64 | `fnos-ups-monitor_<版本>_x86.fpk` |
+| ARM64 | `fnos-ups-monitor_<版本>_arm.fpk` |
 
-## 0.2.0
+每个安装包都附带同名 `.sha256` 校验文件。架构不匹配的 FPK 无法正常安装或运行。
 
-- 新增 x86 与 ARM64 独立构建，避免在一个 FPK 中混装不同架构二进制。
-- Go 后端按配置、NUT、存储、监控与 HTTP 职责拆分源码文件，并补充自动化测试。
-- 新增 `/api/health` 与 `/api/readiness`，暴露版本、最近轮询、最近成功采集及存储/Webhook 错误。
-- 配置损坏时不再用默认配置静默覆盖原文件。
-- 历史、事件和 Webhook 错误不再静默忽略，测试 Webhook 会返回真实投递结果。
-- 历史查询范围扩展至一年，为后续 7 天、30 天图表做准备。
+## 安装
 
+1. 打开 [最新 Release](https://github.com/chenpingonline/ups-monitor/releases/latest)。
+2. 下载与 NAS 处理器架构匹配的 `.fpk` 文件。
+3. 进入 fnOS「应用中心」，选择「手动安装」并上传安装包。
+4. 安装完成后，从 fnOS 桌面打开 **UPS Monitor**。
+5. 进入「设置 → 基础连接与告警」，填写 NUT 主机、端口和 UPS 名称，然后点击「测试连接」。
 
-## 0.1.4 UI 更新
+首次使用可以保留以下默认值：
 
-- 使用 fnOS 风格的“画布 + 浮动窗口”布局：亮色画布为 `#F3F3F3`，暗色画布为 `#0C0C0D`。
-- 亮色与暗色主题使用完全相同的 DOM、卡片位置、尺寸与图标，只改变颜色、边框和阴影。
-- 主题默认跟随系统，可在跟随系统、亮色、暗色之间循环切换；用户选择保存在 localStorage，跟随模式会响应系统主题变化。
-- 所有主题统一使用 UPS 设备主视觉，不在不同主题之间切换设备布局。
-- 保留紧凑线性 SVG 图标、6 个指标卡片、24 小时趋势、最近事件和折叠设置区。
-- 页面内部不再重复显示 UPS Monitor 大标题和副标题，fnOS 窗口标题栏负责显示应用名称。
+| 配置项 | 默认值 | 说明 |
+| --- | --- | --- |
+| NUT 主机 | `127.0.0.1` | NUT 运行在其他设备时改为对应局域网地址 |
+| NUT 端口 | `3493` | NUT `upsd` 的监听端口 |
+| UPS 名称 | 留空 | 自动选择 NUT 返回的第一台 UPS |
+| 轮询间隔 | `10` 秒 | 实时状态刷新频率 |
+| 历史保留 | `30` 天 | 可在设置中调整 |
+| 低电量阈值 | `25%` | 用于基础低电量提醒 |
 
-## 0.1.4 修复点
+## 安全说明
 
-- `platform=all` 改为 `platform=x86`。
-- 移除 `install_dep_apps=python312`，避免应用中心在安装前查询 Python Runtime。
-- 后端改为静态链接 Linux amd64 Go 单文件，无 Python / Node / Docker 依赖。
-- `cmd/` 包含 fnpack 1.2.3 项目骨架要求的 9 个生命周期脚本：`main`、install/upgrade/uninstall/config 的 init + callback。
-- `config/privilege`、`config/resource`、`app/ui/config`、4 个 wizard 文件均为严格 JSON。
-- 继续使用 fnOS Unified Gateway：`/app/fnos-ups-monitor` -> `ups-monitor.sock`。
-- 为隔离“应用包不符合系统要求”的原因，本测试版暂不声明 `os_min_version`；确认设备版本后发布版再恢复最低版本声明。
-- 设置和历史改为 JSON / JSONL 持久化，不依赖 SQLite 动态库。
+- 建议仅在可信局域网中使用，不要将应用或 NUT 端口直接暴露到公网。
+- NUT 控制账号、通知 Token 和 API Token 都属于敏感信息，请勿提交到公开仓库或问题反馈中。
+- 实际系统关机默认不可执行。启用前请先长期使用演练模式，并阅读[高级配置与关机安全门禁](docs/CONFIG.md)。
+- UPS 型号和固件的上报字段可能不同，页面会以设备实际提供的数据和能力为准。
 
-## 跨平台构建
+## 从源码构建
 
-高级配置示例和安全门禁说明见 [`docs/CONFIG.md`](docs/CONFIG.md)。
-
-在 macOS 或 Linux 上生成两个独立候选包：
+项目使用 Go 静态编译后端，并分别生成 x86_64 与 ARM64 安装包。在 macOS 或 Linux 上执行：
 
 ```bash
 ./build-release.sh all
 ```
-
-每次执行打包命令都会先将 `VERSION` 的补丁版本自动加 1，并同步更新 `package/manifest`。一次 `all` 同时生成 x86 和 ARM 安装包，只递增一次版本号。
 
 也可以只构建一个架构：
 
@@ -91,16 +89,9 @@
 ./build-release.sh arm
 ```
 
-输出：
+构建产物位于 `dist/`。每次运行打包脚本都会先将 `VERSION` 的补丁版本递增一次；`all` 会同时构建两个架构，但只递增一次版本号。
 
-```text
-dist/fnos-ups-monitor_1.2.1_x86.fpk
-dist/fnos-ups-monitor_1.2.1_arm.fpk
-```
-
-## 官方 fnpack 1.2.3 构建
-
-在 Linux amd64 构建机上，`build-with-fnpack.sh` 会从飞牛官方地址下载 fnpack 1.2.3、校验固定 SHA-256，并构建指定架构：
+如需使用飞牛官方 `fnpack 1.2.3`，请在 Linux amd64 环境执行：
 
 ```bash
 ./audit.sh
@@ -108,24 +99,25 @@ dist/fnos-ups-monitor_1.2.1_arm.fpk
 ./build-with-fnpack.sh arm
 ```
 
-输出：
+## 运行检查
 
-```text
-dist/fnos-ups-monitor_1.2.1_x86.fpk
-dist/fnos-ups-monitor_1.2.1_arm.fpk
-```
-
-## 安装后的日志
+安装后的应用日志：
 
 ```bash
 tail -f /var/apps/fnos-ups-monitor/var/ups-monitor.log
 ```
 
-状态检查：
+检查运行状态：
 
 ```bash
 /var/apps/fnos-ups-monitor/cmd/main status
 echo $?
 ```
 
-返回 `0` 表示运行，`3` 表示未运行。
+返回 `0` 表示正在运行，返回 `3` 表示未运行。
+
+## 文档与反馈
+
+- [高级配置、通知、MQTT 与安全关机](docs/CONFIG.md)
+- [下载最新版本](https://github.com/chenpingonline/ups-monitor/releases/latest)
+- [提交问题](https://github.com/chenpingonline/ups-monitor/issues)
