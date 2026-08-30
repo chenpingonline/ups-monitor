@@ -17,6 +17,8 @@ type UPSInfo struct {
 }
 
 type Status struct {
+	TargetID       string            `json:"target_id,omitempty"`
+	TargetName     string            `json:"target_name,omitempty"`
 	Connected      bool              `json:"connected"`
 	TS             int64             `json:"ts"`
 	Error          string            `json:"error"`
@@ -32,6 +34,8 @@ type Status struct {
 	OutputVoltage  *float64          `json:"output_voltage"`
 	BatteryVoltage *float64          `json:"battery_voltage"`
 	InputFrequency *float64          `json:"input_frequency"`
+	RealPower      *float64          `json:"real_power"`
+	Temperature    *float64          `json:"temperature"`
 	UPSModel       string            `json:"ups_model,omitempty"`
 	UPSMfr         string            `json:"ups_mfr,omitempty"`
 	UPSSerial      string            `json:"ups_serial,omitempty"`
@@ -40,9 +44,11 @@ type Status struct {
 }
 
 type NutClient struct {
-	Host    string
-	Port    int
-	Timeout time.Duration
+	Host     string
+	Port     int
+	Timeout  time.Duration
+	Username string
+	Password string
 }
 
 func (n NutClient) command(command string) (string, error) {
@@ -81,6 +87,53 @@ func (n NutClient) command(command string) (string, error) {
 		return "", errors.New(strings.TrimSpace(text))
 	}
 	return text, nil
+}
+
+func (n NutClient) authenticatedCommand(command string) (string, error) {
+	connection, err := net.DialTimeout("tcp", net.JoinHostPort(n.Host, strconv.Itoa(n.Port)), n.Timeout)
+	if err != nil {
+		return "", err
+	}
+	defer connection.Close()
+	_ = connection.SetDeadline(time.Now().Add(n.Timeout))
+	reader := bufio.NewReader(connection)
+	commands := []string{}
+	if n.Username != "" {
+		commands = append(commands, "USERNAME "+n.Username, "PASSWORD "+n.Password)
+	}
+	commands = append(commands, command)
+	for _, item := range commands {
+		if _, err := io.WriteString(connection, item+"\n"); err != nil {
+			return "", err
+		}
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return "", err
+		}
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "ERR ") {
+			return "", errors.New(line)
+		}
+		if item == command {
+			return line, nil
+		}
+	}
+	return "", errors.New("NUT 未返回命令结果")
+}
+
+func (n NutClient) InstantCommand(upsName, command string) error {
+	allowed := map[string]bool{"test.battery.start.quick": true, "test.battery.start.deep": true, "test.battery.stop": true}
+	if !allowed[command] {
+		return errors.New("不允许执行该 UPS 命令")
+	}
+	response, err := n.authenticatedCommand("INSTCMD " + upsName + " " + command)
+	if err != nil {
+		return err
+	}
+	if response != "OK" {
+		return errors.New("NUT 命令未确认成功: " + response)
+	}
+	return nil
 }
 
 func splitNut(line string) []string {
@@ -179,11 +232,9 @@ func normalize(upsName string, upsList []UPSInfo, values map[string]string) Stat
 			texts = append(texts, flag)
 		}
 	}
-	raw := map[string]string{}
-	for _, key := range []string{"battery.charge.low", "battery.runtime.low", "ups.realpower.nominal", "ups.power.nominal", "input.voltage.nominal", "output.voltage.nominal"} {
-		if values[key] != "" {
-			raw[key] = values[key]
-		}
+	raw := make(map[string]string, len(values))
+	for key, value := range values {
+		raw[key] = value
 	}
 	return Status{
 		Connected: true, TS: time.Now().Unix(), UPSName: upsName, UPSList: upsList, Status: status,
@@ -191,10 +242,24 @@ func normalize(upsName string, upsList []UPSInfo, values map[string]string) Stat
 		Load: floatPointer(values["ups.load"]), Runtime: floatPointer(values["battery.runtime"]),
 		InputVoltage: floatPointer(values["input.voltage"]), OutputVoltage: floatPointer(values["output.voltage"]),
 		BatteryVoltage: floatPointer(values["battery.voltage"]), InputFrequency: floatPointer(values["input.frequency"]),
+		RealPower: effectiveRealPower(values), Temperature: floatPointer(firstNonEmpty(values["ups.temperature"], values["battery.temperature"])),
 		UPSModel:  firstNonEmpty(values["ups.model"], values["device.model"]),
 		UPSMfr:    firstNonEmpty(values["ups.mfr"], values["device.mfr"]),
 		UPSSerial: firstNonEmpty(values["ups.serial"], values["device.serial"]), BatteryType: values["battery.type"], Raw: raw,
 	}
+}
+
+func effectiveRealPower(values map[string]string) *float64 {
+	if direct := floatPointer(values["ups.realpower"]); direct != nil {
+		return direct
+	}
+	nominal := floatPointer(values["ups.realpower.nominal"])
+	load := floatPointer(values["ups.load"])
+	if nominal == nil || load == nil {
+		return nil
+	}
+	value := *nominal * *load / 100
+	return &value
 }
 
 func firstNonEmpty(first, second string) string {

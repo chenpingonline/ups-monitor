@@ -1,6 +1,32 @@
-# fnOS UPS Monitor 0.1.4 (x86)
+# fnOS UPS Monitor 1.0.1（x86 / ARM64 独立包）
 
-这是针对 fnOS x86_64 NAS 的修复版 UPS 监控 FPK 项目。
+这是面向 fnOS x86_64 与 ARM64 NAS 的轻量 UPS 监控 FPK 项目。两种架构使用同一套源码，分别生成安装包。
+
+## 1.0.1
+
+- 设备详情改为状态摘要以及设备、电池、输入、输出分组信息卡，原始 NUT 数据默认折叠。
+- 30 天报告、电池健康和关机计划改为中文可视化摘要。
+- `ERR USERNAME-REQUIRED` 等 NUT 错误显示中文原因和配置建议。
+
+## 1.0.0
+
+- 多 NUT 服务器、多 UPS 目标统一监控，旧版单目标配置自动兼容。
+- 按设备查看实时数据、完整 NUT 原始变量、1 小时至 30 天趋势和事件。
+- 支持电量、续航、负载、电压、频率、功率、温度规则告警，包含持续时间、恢复迟滞和冷却提醒。
+- Webhook、ntfy、Gotify、Telegram、企业微信、钉钉通知使用磁盘持久化队列和指数退避重试。
+- 电池健康评分、UPS 快速/深度自检白名单和计划自检。
+- Prometheus `/metrics`、MQTT 状态发布、API Token。
+- 停电次数/时长、能耗估算、JSON/CSV 导出。
+- 默认关闭且默认为演练模式的关机策略；实际关机需要配置确认短语和进程环境门禁，并在倒计时结束前再次检查市电状态。
+
+## 0.2.0
+
+- 新增 x86 与 ARM64 独立构建，避免在一个 FPK 中混装不同架构二进制。
+- Go 后端按配置、NUT、存储、监控与 HTTP 职责拆分源码文件，并补充自动化测试。
+- 新增 `/api/health` 与 `/api/readiness`，暴露版本、最近轮询、最近成功采集及存储/Webhook 错误。
+- 配置损坏时不再用默认配置静默覆盖原文件。
+- 历史、事件和 Webhook 错误不再静默忽略，测试 Webhook 会返回真实投递结果。
+- 历史查询范围扩展至一年，为后续 7 天、30 天图表做准备。
 
 
 ## 0.1.4 UI 更新
@@ -23,19 +49,45 @@
 - 为隔离“应用包不符合系统要求”的原因，本测试版暂不声明 `os_min_version`；确认设备版本后发布版再恢复最低版本声明。
 - 设置和历史改为 JSON / JSONL 持久化，不依赖 SQLite 动态库。
 
-## 官方 fnpack 1.2.3 构建
+## 跨平台构建
 
-项目提供 `build-with-fnpack.sh`，会从飞牛官方地址下载 Linux amd64 fnpack 1.2.3，并校验固定 SHA-256 后构建：
+高级配置示例和安全门禁说明见 [`docs/CONFIG.md`](docs/CONFIG.md)。
+
+在 macOS 或 Linux 上生成两个独立候选包：
 
 ```bash
-./audit.sh
-./build-with-fnpack.sh
+./build-release.sh all
+```
+
+也可以只构建一个架构：
+
+```bash
+./build-release.sh x86
+./build-release.sh arm
 ```
 
 输出：
 
 ```text
-dist/fnos-ups-monitor_0.1.4_x86.fpk
+dist/fnos-ups-monitor_1.0.1_x86.fpk
+dist/fnos-ups-monitor_1.0.1_arm.fpk
+```
+
+## 官方 fnpack 1.2.3 构建
+
+在 Linux amd64 构建机上，`build-with-fnpack.sh` 会从飞牛官方地址下载 fnpack 1.2.3、校验固定 SHA-256，并构建指定架构：
+
+```bash
+./audit.sh
+./build-with-fnpack.sh x86
+./build-with-fnpack.sh arm
+```
+
+输出：
+
+```text
+dist/fnos-ups-monitor_1.0.1_x86.fpk
+dist/fnos-ups-monitor_1.0.1_arm.fpk
 ```
 
 ## 安装后的日志

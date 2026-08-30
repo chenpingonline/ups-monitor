@@ -49,12 +49,61 @@ func TestConfigStoreLoadsLegacyFileWithDefaults(t *testing.T) {
 	if err := os.WriteFile(path, []byte(`{"nut_host":"192.0.2.1","ups_name":"main"}`), 0640); err != nil {
 		t.Fatal(err)
 	}
-	store := NewConfigStore(path)
+	store, err := OpenConfigStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
 	config := store.Get()
 	if config.NutHost != "192.0.2.1" || config.UPSName != "main" {
 		t.Fatalf("loaded config = %+v", config)
 	}
 	if config.NutPort != 3493 || config.PollInterval != 10 || config.WebhookTimeout != 5 {
 		t.Fatalf("defaults not merged: %+v", config)
+	}
+}
+
+func TestOpenConfigStoreRejectsAndPreservesInvalidFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	invalid := []byte(`{"nut_host":`)
+	if err := os.WriteFile(path, invalid, 0640); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := OpenConfigStore(path); err == nil {
+		t.Fatal("OpenConfigStore() unexpectedly accepted invalid JSON")
+	}
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(contents) != string(invalid) {
+		t.Fatalf("invalid config was overwritten: %q", contents)
+	}
+}
+
+func TestEffectiveTargetsMigratesLegacyAndSupportsMultipleTargets(t *testing.T) {
+	legacy := defaultConfig()
+	legacy.NutHost = "192.0.2.10"
+	legacy.UPSName = "main"
+	targets := legacy.EffectiveTargets()
+	if len(targets) != 1 || targets[0].ID != "default" || targets[0].Host != "192.0.2.10" {
+		t.Fatalf("legacy targets = %#v", targets)
+	}
+	legacy.Targets = []NUTTarget{{ID: "ups-a", Name: "机柜 A", Host: "192.0.2.11", Port: 3493, Enabled: true}, {ID: "disabled", Host: "192.0.2.12"}}
+	targets = legacy.EffectiveTargets()
+	if len(targets) != 1 || targets[0].ID != "ups-a" {
+		t.Fatalf("multi targets = %#v", targets)
+	}
+}
+
+func TestValidateConfigRejectsDuplicateTargetAndUnsafeShutdownCommand(t *testing.T) {
+	config := defaultConfig()
+	config.Targets = []NUTTarget{{ID: "same", Host: "localhost", Enabled: true}, {ID: "same", Host: "localhost", Enabled: true}}
+	if _, err := validateConfig(config); err == nil {
+		t.Fatal("duplicate target unexpectedly accepted")
+	}
+	config.Targets = nil
+	config.Shutdown.Command = "rm -rf /"
+	if _, err := validateConfig(config); err == nil {
+		t.Fatal("unsafe shutdown command unexpectedly accepted")
 	}
 }

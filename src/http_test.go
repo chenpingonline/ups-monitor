@@ -7,12 +7,16 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func newTestApp(t *testing.T) *App {
 	t.Helper()
 	directory := t.TempDir()
-	config := NewConfigStore(filepath.Join(directory, "config.json"))
+	config, err := OpenConfigStore(filepath.Join(directory, "config.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	store := NewStore(directory)
 	monitor := NewMonitor(config, store)
 	monitor.set(Status{Connected: true, TS: 123, UPSList: []UPSInfo{}, Status: "OL"})
@@ -82,5 +86,94 @@ func TestUnknownRouteReturnsJSON404(t *testing.T) {
 	}
 	if contentType := recorder.Header().Get("Content-Type"); !strings.HasPrefix(contentType, "application/json") {
 		t.Fatalf("Content-Type = %q", contentType)
+	}
+}
+
+func TestHealthAndReadinessEndpoints(t *testing.T) {
+	app := newTestApp(t)
+	for _, path := range []string{"/api/health", "/api/readiness"} {
+		recorder := httptest.NewRecorder()
+		app.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("%s status = %d, body = %s", path, recorder.Code, recorder.Body.String())
+		}
+	}
+	app.mon.set(Status{Connected: false, Error: "offline", UPSList: []UPSInfo{}})
+	recorder := httptest.NewRecorder()
+	app.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/readiness", nil))
+	if recorder.Code != http.StatusServiceUnavailable {
+		t.Fatalf("readiness status = %d, want 503", recorder.Code)
+	}
+}
+
+func TestMetricsRequireConfiguredAPITokenAndExposeMultipleTargets(t *testing.T) {
+	app := newTestApp(t)
+	config := app.cfg.Get()
+	config.APIToken = "secret-token"
+	if err := app.cfg.Save(config); err != nil {
+		t.Fatal(err)
+	}
+	app.mon.set(Status{TargetID: "ups-a", TargetName: "机柜 A", UPSName: "main", Connected: true, Charge: floatPointer("88"), UPSList: []UPSInfo{}})
+	unauthorized := httptest.NewRecorder()
+	app.ServeHTTP(unauthorized, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if unauthorized.Code != http.StatusUnauthorized {
+		t.Fatalf("metrics status = %d", unauthorized.Code)
+	}
+	request := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	request.Header.Set("Authorization", "Bearer secret-token")
+	recorder := httptest.NewRecorder()
+	app.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `target_id="ups-a"`) || !strings.Contains(recorder.Body.String(), "fnos_ups_battery_charge_percent") {
+		t.Fatalf("metrics response = %d %s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestHistoryCSVReportAndDownsampling(t *testing.T) {
+	app := newTestApp(t)
+	now := time.Now().Unix()
+	power := 100.0
+	for index := 0; index < 4; index++ {
+		if err := app.store.AddHistory(Status{TargetID: "ups-a", UPSName: "main", TS: now - int64(3-index)*1200, RealPower: &power}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := appendJSON(app.store.eventsPath, Event{TS: now - 600, TargetID: "ups-a", Type: "on_battery"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := appendJSON(app.store.eventsPath, Event{TS: now - 300, TargetID: "ups-a", Type: "online"}); err != nil {
+		t.Fatal(err)
+	}
+	csvRecorder := httptest.NewRecorder()
+	app.ServeHTTP(csvRecorder, httptest.NewRequest(http.MethodGet, "/api/history.csv?hours=24&target_id=ups-a", nil))
+	if csvRecorder.Code != http.StatusOK || !strings.Contains(csvRecorder.Body.String(), "real_power") {
+		t.Fatalf("CSV = %d %s", csvRecorder.Code, csvRecorder.Body.String())
+	}
+	reportRecorder := httptest.NewRecorder()
+	app.ServeHTTP(reportRecorder, httptest.NewRequest(http.MethodGet, "/api/reports/summary?days=1&target_id=ups-a", nil))
+	if reportRecorder.Code != http.StatusOK || !strings.Contains(reportRecorder.Body.String(), `"outage_count":1`) {
+		t.Fatalf("report = %d %s", reportRecorder.Code, reportRecorder.Body.String())
+	}
+	items := []HistoryItem{{TS: 1}, {TS: 2}, {TS: 3}, {TS: 4}, {TS: 5}}
+	sampled := downsampleHistory(items, 3)
+	if len(sampled) != 3 || sampled[0].TS != 1 || sampled[2].TS != 5 {
+		t.Fatalf("sampled = %#v", sampled)
+	}
+}
+
+func TestDashboardRendersReadableDeviceResults(t *testing.T) {
+	app := newTestApp(t)
+	recorder := httptest.NewRecorder()
+	app.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("dashboard = %d", recorder.Code)
+	}
+	body := recorder.Body.String()
+	for _, text := range []string{"设备信息", "电池信息", "输入电源", "输出与负载", "展开原始 NUT 数据", "近 ${esc(data.days)} 天运行报告", "NUT 拒绝了这项操作：设备要求身份验证"} {
+		if !strings.Contains(body, text) {
+			t.Fatalf("dashboard missing readable result marker %q", text)
+		}
+	}
+	if strings.Contains(body, "$('dataResult').textContent=JSON.stringify") {
+		t.Fatal("device results regressed to raw JSON output")
 	}
 }

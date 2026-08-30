@@ -1,5 +1,5 @@
 appname=fnos-ups-monitor
-version=0.1.4
+version=1.0.1
 display_name=UPS Monitor
 desc=fnOS UPS 状态、历史趋势与事件告警监控。读取本机或远程 NUT 服务，不修改系统 UPS 配置。
 maintainer=Local Build
@@ -10,4 +10,4 @@ desktop_applaunchname=fnos-ups-monitor.main
 source=thirdparty
 ctl_stop=true
 disable_authorization_path=true
-changelog=0.1.4 UI 定稿：移除左侧导航；亮暗主题完全复用同一布局，仅切换配色；主题切换移动到右上角；统一 UPS 主视觉与线性指标图标。
+changelog=1.0.1 设备详情、运行报告、电池健康和关机计划改为中文可视化卡片，NUT 错误增加原因与处理建议。

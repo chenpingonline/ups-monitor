@@ -22,7 +22,7 @@ start_app() {
   [ -x "$BIN" ] || { write_error "UPS Monitor 后端程序不存在或不可执行"; return 1; }
   mkdir -p "$TRIM_PKGVAR" "$TRIM_PKGETC" || { write_error "无法创建应用数据目录"; return 1; }
   rm -f "$SOCKET_PATH"
-  log_msg "Starting UPS Monitor 0.1.3"
+  log_msg "Starting UPS Monitor"
   DATA_DIR="$TRIM_PKGVAR" CONFIG_DIR="$TRIM_PKGETC" SOCKET_PATH="$SOCKET_PATH" "$BIN" >> "$LOG_FILE" 2>&1 &
   pid=$!
   printf '%s\n' "$pid" > "$PID_FILE"

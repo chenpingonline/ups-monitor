@@ -78,3 +78,37 @@ func TestNormalizeMapsStatusAndMetrics(t *testing.T) {
 		t.Fatalf("Raw = %#v", status.Raw)
 	}
 }
+
+func TestInstantCommandAuthenticatesAndRestrictsCommands(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		connection, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			return
+		}
+		defer connection.Close()
+		reader := bufio.NewReader(connection)
+		for _, expected := range []string{"USERNAME monitor\n", "PASSWORD secret\n", "INSTCMD main test.battery.start.quick\n"} {
+			line, _ := reader.ReadString('\n')
+			if line != expected {
+				return
+			}
+			_, _ = fmt.Fprint(connection, "OK\n")
+		}
+	}()
+	address := listener.Addr().(*net.TCPAddr)
+	client := NutClient{Host: "127.0.0.1", Port: address.Port, Timeout: time.Second, Username: "monitor", Password: "secret"}
+	if err := client.InstantCommand("main", "test.battery.start.quick"); err != nil {
+		t.Fatal(err)
+	}
+	<-done
+	if err := client.InstantCommand("main", "load.off"); err == nil {
+		t.Fatal("unsafe command unexpectedly accepted")
+	}
+}

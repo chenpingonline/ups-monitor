@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"testing"
 	"time"
 )
@@ -26,18 +27,74 @@ func TestStoreFiltersOrdersAndCleansJSONL(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	history := store.History(24)
+	history, err := store.History(24)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(history) != 1 || history[0].TS != now {
 		t.Fatalf("History() = %#v", history)
 	}
-	events := store.Events(2)
+	events, err := store.Events(2)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(events) != 2 || events[0].Type != "second" || events[1].Type != "first" {
 		t.Fatalf("Events() = %#v", events)
 	}
 
-	store.Cleanup(1)
-	allEvents := readJSONL[Event](store.eventsPath)
+	if err := store.Cleanup(1); err != nil {
+		t.Fatal(err)
+	}
+	allEvents, err := readJSONL[Event](store.eventsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(allEvents) != 2 {
 		t.Fatalf("events after Cleanup() = %#v", allEvents)
+	}
+}
+
+func TestStoreReportsCorruptJSONL(t *testing.T) {
+	store := NewStore(t.TempDir())
+	if err := os.WriteFile(store.eventsPath, []byte("{broken\n"), 0640); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Events(10); err == nil {
+		t.Fatal("Events() unexpectedly ignored corrupt JSONL")
+	}
+}
+
+func TestNotificationQueuePersistsUpdatesAndCompletes(t *testing.T) {
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := defaultConfig()
+	config.WebhookURL = "https://example.test/hook"
+	event := Event{ID: "job-1", TargetID: "ups-a", TS: time.Now().Unix(), Type: "test"}
+	if err := store.EnqueueNotification(event, config); err != nil {
+		t.Fatal(err)
+	}
+	jobs, err := store.PendingNotifications(time.Now().Unix(), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(jobs) != 1 || jobs[0].ID != "job-1" {
+		t.Fatalf("pending jobs = %#v", jobs)
+	}
+	jobs[0].Attempts = 2
+	jobs[0].NextAttempt = time.Now().Add(time.Hour).Unix()
+	if err := store.UpdateNotification(jobs[0]); err != nil {
+		t.Fatal(err)
+	}
+	jobs, err = store.PendingNotifications(time.Now().Unix(), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(jobs) != 0 {
+		t.Fatalf("future job was returned: %#v", jobs)
+	}
+	if err := store.CompleteNotification("job-1"); err != nil {
+		t.Fatal(err)
 	}
 }
