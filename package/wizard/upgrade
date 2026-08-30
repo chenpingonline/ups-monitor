@@ -1,0 +1,11 @@
+[
+  {
+    "stepTitle": "升级 UPS Monitor",
+    "items": [
+      {
+        "type": "tips",
+        "helpText": "升级会保留现有设置、历史记录和事件记录。"
+      }
+    ]
+  }
+]

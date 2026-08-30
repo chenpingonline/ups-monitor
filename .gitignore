@@ -1,0 +1,23 @@
+# IDE and operating-system metadata
+.idea/
+.vscode/
+.DS_Store
+
+# Downloaded build tools and generated packages
+.tools/
+dist/
+*.fpk
+*.fpk.sha256
+
+# Go test/build artifacts
+coverage.out
+*.coverprofile
+*.prof
+*.test
+/src/fnos-ups-monitor
+
+# Editor and temporary files
+*.swp
+*.swo
+*.tmp
+*~

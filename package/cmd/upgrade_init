@@ -1,0 +1,5 @@
+#!/bin/bash
+set -u
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ -x "$SCRIPT_DIR/main" ]; then "$SCRIPT_DIR/main" stop >/dev/null 2>&1 || true; fi
+exit 0

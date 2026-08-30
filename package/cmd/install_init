@@ -1,0 +1,11 @@
+#!/bin/bash
+set -u
+fail() {
+  if [ -n "${TRIM_TEMP_LOGFILE:-}" ]; then printf '%s\n' "$1" > "$TRIM_TEMP_LOGFILE"; fi
+  exit 1
+}
+case "$(uname -m 2>/dev/null || true)" in
+  x86_64|amd64) ;;
+  *) fail "UPS Monitor 0.1.3 仅支持 x86_64 fnOS。" ;;
+esac
+exit 0

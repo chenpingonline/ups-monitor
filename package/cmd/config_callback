@@ -1,0 +1,3 @@
+#!/bin/bash
+# 当前 wizard/config 为空，无系统设置项需要迁移或重启。
+exit 0

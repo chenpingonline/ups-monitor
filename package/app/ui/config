@@ -1,0 +1,14 @@
+{
+  ".url": {
+    "fnos-ups-monitor.main": {
+      "title": "UPS Monitor",
+      "icon": "images/icon_{0}.png",
+      "type": "iframe",
+      "protocol": "",
+      "gatewayPrefix": "/app/fnos-ups-monitor",
+      "gatewaySocket": "ups-monitor.sock",
+      "url": "/app/fnos-ups-monitor",
+      "allUsers": true
+    }
+  }
+}

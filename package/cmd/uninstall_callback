@@ -1,0 +1,7 @@
+#!/bin/bash
+set -u
+if [ "${wizard_delete_data:-false}" = "true" ]; then
+  if [ -n "${TRIM_PKGVAR:-}" ] && [ "$TRIM_PKGVAR" != "/" ]; then rm -rf -- "$TRIM_PKGVAR"/* "$TRIM_PKGVAR"/.[!.]* "$TRIM_PKGVAR"/..?* 2>/dev/null || true; fi
+  if [ -n "${TRIM_PKGETC:-}" ] && [ "$TRIM_PKGETC" != "/" ]; then rm -rf -- "$TRIM_PKGETC"/* "$TRIM_PKGETC"/.[!.]* "$TRIM_PKGETC"/..?* 2>/dev/null || true; fi
+fi
+exit 0

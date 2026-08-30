@@ -1,0 +1,17 @@
+[
+  {
+    "stepTitle": "卸载 UPS Monitor",
+    "items": [
+      {
+        "type": "radio",
+        "field": "wizard_delete_data",
+        "label": "历史记录与设置",
+        "initValue": "false",
+        "options": [
+          {"label": "保留历史记录与设置", "value": "false"},
+          {"label": "同时删除历史记录与设置", "value": "true"}
+        ]
+      }
+    ]
+  }
+]

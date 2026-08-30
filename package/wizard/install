@@ -1,0 +1,11 @@
+[
+  {
+    "stepTitle": "安装 UPS Monitor",
+    "items": [
+      {
+        "type": "tips",
+        "helpText": "默认读取本机 NUT 127.0.0.1:3493。安装后可在应用内修改 NUT 地址、低电量阈值和 Webhook。应用不会修改 /etc/nut，也不会接管 fnOS 官方关机策略。"
+      }
+    ]
+  }
+]

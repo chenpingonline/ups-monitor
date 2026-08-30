@@ -1,0 +1,11 @@
+#!/bin/bash
+set -u
+fail() {
+  if [ -n "${TRIM_TEMP_LOGFILE:-}" ]; then printf '%s\n' "$1" > "$TRIM_TEMP_LOGFILE"; fi
+  exit 1
+}
+[ -n "${TRIM_APPDEST:-}" ] || fail "TRIM_APPDEST 未设置"
+mkdir -p "${TRIM_PKGVAR:-}" "${TRIM_PKGETC:-}" 2>/dev/null || true
+[ -x "$TRIM_APPDEST/ups-monitor" ] || fail "升级后的后端程序不存在或不可执行"
+rm -f "$TRIM_APPDEST/ups-monitor.sock" "${TRIM_PKGVAR:-}/ups-monitor.pid" 2>/dev/null || true
+exit 0

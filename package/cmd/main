@@ -1,0 +1,63 @@
+#!/bin/bash
+set -u
+LOG_FILE="${TRIM_PKGVAR}/ups-monitor.log"
+PID_FILE="${TRIM_PKGVAR}/ups-monitor.pid"
+SOCKET_PATH="${TRIM_APPDEST}/ups-monitor.sock"
+BIN="${TRIM_APPDEST}/ups-monitor"
+
+write_error() {
+  if [ -n "${TRIM_TEMP_LOGFILE:-}" ]; then printf '%s\n' "$1" > "$TRIM_TEMP_LOGFILE"; fi
+}
+log_msg() { mkdir -p "$TRIM_PKGVAR" 2>/dev/null || true; printf '%s %s\n' "$(date '+%F %T')" "$*" >> "$LOG_FILE"; }
+status_app() {
+  if [ -f "$PID_FILE" ]; then
+    pid="$(head -n1 "$PID_FILE" | tr -d '[:space:]')"
+    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then return 0; fi
+    rm -f "$PID_FILE"
+  fi
+  return 1
+}
+start_app() {
+  status_app && return 0
+  [ -x "$BIN" ] || { write_error "UPS Monitor 后端程序不存在或不可执行"; return 1; }
+  mkdir -p "$TRIM_PKGVAR" "$TRIM_PKGETC" || { write_error "无法创建应用数据目录"; return 1; }
+  rm -f "$SOCKET_PATH"
+  log_msg "Starting UPS Monitor 0.1.3"
+  DATA_DIR="$TRIM_PKGVAR" CONFIG_DIR="$TRIM_PKGETC" SOCKET_PATH="$SOCKET_PATH" "$BIN" >> "$LOG_FILE" 2>&1 &
+  pid=$!
+  printf '%s\n' "$pid" > "$PID_FILE"
+  n=0
+  while [ "$n" -lt 30 ]; do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      rm -f "$PID_FILE"
+      write_error "UPS Monitor 启动失败，请查看 $LOG_FILE"
+      return 1
+    fi
+    if [ -S "$SOCKET_PATH" ]; then return 0; fi
+    sleep 0.1
+    n=$((n+1))
+  done
+  stop_app
+  write_error "UPS Monitor 启动超时，未创建网关 Socket"
+  return 1
+}
+stop_app() {
+  if [ -f "$PID_FILE" ]; then
+    pid="$(head -n1 "$PID_FILE" | tr -d '[:space:]')"
+    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+      kill -TERM "$pid" 2>/dev/null || true
+      n=0
+      while kill -0 "$pid" 2>/dev/null && [ "$n" -lt 10 ]; do sleep 1; n=$((n+1)); done
+      if kill -0 "$pid" 2>/dev/null; then kill -KILL "$pid" 2>/dev/null || true; fi
+    fi
+  fi
+  rm -f "$PID_FILE" "$SOCKET_PATH"
+  return 0
+}
+case "${1:-}" in
+  start) start_app ;;
+  stop) stop_app ;;
+  status) status_app && exit 0 || exit 3 ;;
+  restart) stop_app && start_app ;;
+  *) write_error "Unknown command: ${1:-}"; exit 1 ;;
+esac
