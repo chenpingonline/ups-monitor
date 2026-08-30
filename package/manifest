@@ -1,5 +1,5 @@
 appname=fnos-ups-monitor
-version=1.1.1
+version=1.2.11
 display_name=UPS Monitor
 desc=fnOS UPS 状态、历史趋势与事件告警监控。读取本机或远程 NUT 服务，不修改系统 UPS 配置。
 maintainer=Local Build
@@ -10,4 +10,4 @@ desktop_applaunchname=fnos-ups-monitor.main
 source=thirdparty
 ctl_stop=true
 disable_authorization_path=true
-changelog=1.1.1 新增低续航阈值、蜂鸣器与驱动版本展示，并支持电压、续航和功率历史趋势切换。
+changelog=1.2.11 新增状态、趋势、事件、设备和设置五个功能页，优化 fnOS 窗口布局与主题体验。

@@ -19,7 +19,7 @@ import (
 
 const gatewayPrefix = "/app/fnos-ups-monitor"
 
-//go:embed static/index.html
+//go:embed static/index.html static/ups-device.png static/ups-device-dark.png static/tabler-icons.svg
 var assets embed.FS
 
 type App struct {
@@ -71,6 +71,14 @@ func jsonOut(writer http.ResponseWriter, status int, value any) {
 }
 
 func (a *App) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+	if request.Method == http.MethodGet && request.URL.Path == gatewayPrefix {
+		target := gatewayPrefix + "/"
+		if request.URL.RawQuery != "" {
+			target += "?" + request.URL.RawQuery
+		}
+		http.Redirect(writer, request, target, http.StatusTemporaryRedirect)
+		return
+	}
 	path := routePath(request.URL.Path)
 	if request.Method == http.MethodGet {
 		switch path {
@@ -291,6 +299,36 @@ func (a *App) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 			}
 			writer.Header().Set("Content-Type", "text/html; charset=utf-8")
 			writer.Header().Set("Cache-Control", "no-cache")
+			_, _ = writer.Write(contents)
+			return
+		case "/ups-device.png":
+			contents, err := assets.ReadFile("static/ups-device.png")
+			if err != nil {
+				jsonOut(writer, http.StatusInternalServerError, map[string]string{"error": "static file missing"})
+				return
+			}
+			writer.Header().Set("Content-Type", "image/png")
+			writer.Header().Set("Cache-Control", "public, max-age=86400")
+			_, _ = writer.Write(contents)
+			return
+		case "/ups-device-dark.png":
+			contents, err := assets.ReadFile("static/ups-device-dark.png")
+			if err != nil {
+				jsonOut(writer, http.StatusInternalServerError, map[string]string{"error": "static file missing"})
+				return
+			}
+			writer.Header().Set("Content-Type", "image/png")
+			writer.Header().Set("Cache-Control", "public, max-age=86400")
+			_, _ = writer.Write(contents)
+			return
+		case "/tabler-icons.svg":
+			contents, err := assets.ReadFile("static/tabler-icons.svg")
+			if err != nil {
+				jsonOut(writer, http.StatusInternalServerError, map[string]string{"error": "static file missing"})
+				return
+			}
+			writer.Header().Set("Content-Type", "image/svg+xml")
+			writer.Header().Set("Cache-Control", "public, max-age=86400")
 			_, _ = writer.Write(contents)
 			return
 		}

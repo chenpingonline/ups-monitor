@@ -21,3 +21,7 @@ coverage.out
 *.swo
 *.tmp
 *~
+
+# Local design review artifacts
+design-*.png
+design-qa.md

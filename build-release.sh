@@ -3,7 +3,6 @@ set -euo pipefail
 export LC_ALL=C
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-VERSION="$(tr -d '[:space:]' < "$ROOT/VERSION")"
 OUT="$ROOT/dist"
 mkdir -p "$OUT"
 
@@ -15,7 +14,7 @@ build_package() {
   trap 'rm -rf "$temporary"' RETURN
 
   cp -R "$ROOT/package" "$stage"
-  cp "$ROOT/src/static/index.html" "$stage/app/static/index.html"
+  cp "$ROOT/src/static/index.html" "$ROOT/src/static/ups-device.png" "$ROOT/src/static/ups-device-dark.png" "$ROOT/src/static/tabler-icons.svg" "$stage/app/static/"
   CGO_ENABLED=0 GOOS=linux GOARCH="$goarch" go build \
     -C "$ROOT/src" -trimpath -ldflags "-s -w -X main.version=$VERSION" \
     -o "$stage/app/ups-monitor" .
@@ -24,7 +23,7 @@ build_package() {
   awk -F= -v version="$VERSION" -v platform="$platform" '
     $1=="version" {print "version=" version; next}
     $1=="platform" {print "platform=" platform; next}
-    $1=="changelog" {print "changelog=" version " 低续航阈值、蜂鸣器与驱动版本展示，以及电压、续航和功率历史趋势。"; next}
+    $1=="changelog" {print "changelog=" version " 新增状态、趋势、事件、设备和设置五个功能页，优化 fnOS 窗口布局与主题体验。"; next}
     {print}
   ' "$ROOT/package/manifest" > "$stage/manifest"
 
@@ -50,12 +49,20 @@ build_package() {
   printf '%s\n' "$artifact"
 }
 
-case "${1:-all}" in
+TARGET="${1:-all}"
+case "$TARGET" in
+  all|x86|arm|arm64) ;;
+  *) echo "Usage: $0 [all|x86|arm]" >&2; exit 2 ;;
+esac
+
+VERSION="$("$ROOT/bump-version.sh")"
+printf 'Release version: %s\n' "$VERSION"
+
+case "$TARGET" in
   all)
     build_package x86 amd64
     build_package arm arm64
     ;;
   x86) build_package x86 amd64 ;;
   arm|arm64) build_package arm arm64 ;;
-  *) echo "Usage: $0 [all|x86|arm]" >&2; exit 2 ;;
 esac

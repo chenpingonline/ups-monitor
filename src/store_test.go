@@ -64,6 +64,28 @@ func TestStoreReportsCorruptJSONL(t *testing.T) {
 	}
 }
 
+func TestEventsForIncludesLegacyEventsWithoutTargetID(t *testing.T) {
+	store := NewStore(t.TempDir())
+	now := time.Now().Unix()
+	for _, event := range []Event{
+		{TargetID: "ups-a", TS: now - 2, Type: "target-a"},
+		{TS: now - 1, Type: "legacy"},
+		{TargetID: "ups-b", TS: now, Type: "target-b"},
+	} {
+		if err := appendJSON(store.eventsPath, event); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	events, err := store.EventsFor(10, "ups-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 2 || events[0].Type != "legacy" || events[1].Type != "target-a" {
+		t.Fatalf("EventsFor() = %#v, want legacy and ups-a events", events)
+	}
+}
+
 func TestNotificationQueuePersistsUpdatesAndCompletes(t *testing.T) {
 	store, err := OpenStore(t.TempDir())
 	if err != nil {

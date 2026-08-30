@@ -277,7 +277,9 @@ func (s *Store) EventsFor(limit int, targetID string) ([]Event, error) {
 	}
 	result := make([]Event, 0, limit)
 	for index := len(items) - 1; index >= 0 && len(result) < limit; index-- {
-		if targetID == "" || items[index].TargetID == targetID {
+		// Events written before multi-UPS support have no target_id. They came
+		// from the then-only UPS, so keep them visible when a device is selected.
+		if targetID == "" || items[index].TargetID == "" || items[index].TargetID == targetID {
 			result = append(result, items[index])
 		}
 	}

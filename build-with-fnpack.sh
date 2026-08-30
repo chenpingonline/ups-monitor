@@ -3,7 +3,6 @@ set -euo pipefail
 export LC_ALL=C
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-VERSION="$(tr -d '[:space:]' < "$ROOT/VERSION")"
 PLATFORM="${1:-x86}"
 case "$PLATFORM" in
   x86) GOARCH=amd64 ;;
@@ -29,11 +28,14 @@ actual="$(sha256sum "$FNPACK" | awk '{print $1}')"
 [ "$actual" = "$SHA256" ] || { echo "fnpack SHA-256 mismatch: $actual" >&2; exit 1; }
 chmod 755 "$FNPACK"
 
+VERSION="$("$ROOT/bump-version.sh")"
+printf 'Release version: %s\n' "$VERSION"
+
 temporary="$(mktemp -d)"
 trap 'rm -rf "$temporary"' EXIT
 stage="$temporary/package"
 cp -R "$ROOT/package" "$stage"
-cp "$ROOT/src/static/index.html" "$stage/app/static/index.html"
+cp "$ROOT/src/static/index.html" "$ROOT/src/static/ups-device.png" "$ROOT/src/static/ups-device-dark.png" "$ROOT/src/static/tabler-icons.svg" "$stage/app/static/"
 CGO_ENABLED=0 GOOS=linux GOARCH="$GOARCH" go build \
   -C "$ROOT/src" -trimpath -ldflags "-s -w -X main.version=$VERSION" \
   -o "$stage/app/ups-monitor" .

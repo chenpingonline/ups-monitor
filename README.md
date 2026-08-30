@@ -1,6 +1,13 @@
-# fnOS UPS Monitor 1.1.1（x86 / ARM64 独立包）
+# fnOS UPS Monitor 1.2.1（x86 / ARM64 独立包）
 
 这是面向 fnOS x86_64 与 ARM64 NAS 的轻量 UPS 监控 FPK 项目。两种架构使用同一套源码，分别生成安装包。
+
+## 1.2.1
+
+- 首页重构为状态驾驶舱，设备状态、电量、续航、负载、估算功率和电压一屏可见。
+- 趋势与最近事件形成主工作区，设备详情、电池健康、运行报告和设置收拢为底部快捷入口。
+- 高级配置、自检和原始 NUT 数据移入弹窗，避免监控首页被配置 JSON 占满。
+- 加入施耐德 APC UPS 产品图，并适配桌面、平板和窄屏布局。
 
 ## 1.1.1
 
@@ -47,10 +54,10 @@
 
 ## 0.1.4 UI 更新
 
-- 删除暗色主题左侧导航栏，恢复单页监控仪表盘布局。
-- 亮色与暗色主题现在使用完全相同的 DOM、卡片位置、尺寸与图标，只改变颜色、边框和阴影。
-- 右上角放置亮色 / 暗色切换和连接状态，主题继续保存在 localStorage。
-- 两种主题统一使用 UPS 设备主视觉，不再在亮色和暗色之间切换不同的电池/设备布局。
+- 使用 fnOS 风格的“画布 + 浮动窗口”布局：亮色画布为 `#F3F3F3`，暗色画布为 `#0C0C0D`。
+- 亮色与暗色主题使用完全相同的 DOM、卡片位置、尺寸与图标，只改变颜色、边框和阴影。
+- 主题默认跟随系统，可在跟随系统、亮色、暗色之间循环切换；用户选择保存在 localStorage，跟随模式会响应系统主题变化。
+- 所有主题统一使用 UPS 设备主视觉，不在不同主题之间切换设备布局。
 - 保留紧凑线性 SVG 图标、6 个指标卡片、24 小时趋势、最近事件和折叠设置区。
 - 页面内部不再重复显示 UPS Monitor 大标题和副标题，fnOS 窗口标题栏负责显示应用名称。
 
@@ -75,6 +82,8 @@
 ./build-release.sh all
 ```
 
+每次执行打包命令都会先将 `VERSION` 的补丁版本自动加 1，并同步更新 `package/manifest`。一次 `all` 同时生成 x86 和 ARM 安装包，只递增一次版本号。
+
 也可以只构建一个架构：
 
 ```bash
@@ -85,8 +94,8 @@
 输出：
 
 ```text
-dist/fnos-ups-monitor_1.1.1_x86.fpk
-dist/fnos-ups-monitor_1.1.1_arm.fpk
+dist/fnos-ups-monitor_1.2.1_x86.fpk
+dist/fnos-ups-monitor_1.2.1_arm.fpk
 ```
 
 ## 官方 fnpack 1.2.3 构建
@@ -102,8 +111,8 @@ dist/fnos-ups-monitor_1.1.1_arm.fpk
 输出：
 
 ```text
-dist/fnos-ups-monitor_1.1.1_x86.fpk
-dist/fnos-ups-monitor_1.1.1_arm.fpk
+dist/fnos-ups-monitor_1.2.1_x86.fpk
+dist/fnos-ups-monitor_1.2.1_arm.fpk
 ```
 
 ## 安装后的日志

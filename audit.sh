@@ -4,6 +4,7 @@ export LC_ALL=C
 ROOT="$(cd "$(dirname "$0")" && pwd)"; PKG="${1:-$ROOT/package}"
 required=(main install_init install_callback upgrade_init upgrade_callback uninstall_init uninstall_callback config_init config_callback)
 for f in "${required[@]}"; do test -x "$PKG/cmd/$f" || { echo "ERROR missing/executable cmd/$f"; exit 1; }; done
+for f in index.html ups-device.png ups-device-dark.png tabler-icons.svg; do test -s "$PKG/app/static/$f" || { echo "ERROR missing app/static/$f"; exit 1; }; done
 python3 - <<PY
 import json,pathlib
 p=pathlib.Path('$PKG')
